@@ -1,3 +1,6 @@
+![build](https://github.com/contract-watcher/contract-watcher-frontend/actions/workflows/build.yml/badge.svg)
+![release](https://github.com/contract-watcher/contract-watcher-frontend/actions/workflows/release.yml/badge.svg)
+
 # ContractWatch — Frontend
 
 Веб-интерфейс сервиса **ContractWatch**: контроль изменений во внешних интеграциях (Jira, Shopify, GitHub). Дашборд, настройка интеграций, редактор контракта, инциденты и история проверок.
