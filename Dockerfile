@@ -2,6 +2,8 @@ FROM node:20-alpine AS builder
 
 WORKDIR /app
 
+RUN npm install -g bun
+
 COPY package*.json ./
 RUN bun install --frozen-lockfile
 
