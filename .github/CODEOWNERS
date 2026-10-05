@@ -1,2 +1,19 @@
-* @BariyDev
-.github/ @a1unade
+# Frontend
+/src/ @BariyDev
+/public/ @BariyDev
+/index.html @BariyDev
+/package.json @BariyDev
+/bun.lock @BariyDev
+/vite.config.ts @BariyDev
+/tsconfig*.json @BariyDev
+/eslint.config.js @BariyDev
+/prettier.config.js @BariyDev
+/lint-staged.config.js @BariyDev
+/commitlint.config.js @BariyDev
+/validate-branch-name.config.cjs @BariyDev
+/env.d.ts @BariyDev
+
+# DevOps
+/.github/ @a1unade
+/Dockerfile @a1unade
+/default.conf.template @a1unade
