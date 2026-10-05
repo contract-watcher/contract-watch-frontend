@@ -1,5 +1,6 @@
-![build](https://github.com/contract-watcher/contract-watcher-frontend/actions/workflows/build.yml/badge.svg)
-![release](https://github.com/contract-watcher/contract-watcher-frontend/actions/workflows/release.yml/badge.svg)
+![build](https://github.com/contract-watcher/contract-watch-frontend/actions/workflows/build.yml/badge.svg)
+![release](https://github.com/contract-watcher/contract-watch-frontend/actions/workflows/release.yml/badge.svg)
+![version](https://img.shields.io/github/v/tag/contract-watcher/contract-watch-frontend?sort=semver)
 
 # ContractWatch — Frontend
 
