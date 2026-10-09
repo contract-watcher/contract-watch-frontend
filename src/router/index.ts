@@ -16,14 +16,24 @@ const router = createRouter({
       meta: { publicOnly: true },
     },
     {
-      name: "home",
-      path: "/",
-      component: () => import("@/pages/HomeView.vue"),
+      name: "projects",
+      path: "/projects",
+      component: () => import("@/pages/ProjectsView.vue"),
       meta: { requiresAuth: true },
     },
     {
+      name: "project-integrations",
+      path: "/projects/:projectId/integrations",
+      component: () => import("@/pages/IntegrationsView.vue"),
+      meta: { requiresAuth: true },
+    },
+    {
+      path: "/",
+      redirect: { name: "projects" },
+    },
+    {
       path: "/:pathMatch(.*)*",
-      redirect: { name: "home" },
+      redirect: { name: "projects" },
     },
   ],
 });

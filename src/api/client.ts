@@ -23,19 +23,32 @@ export interface ApiRequestOptions {
   method?: "DELETE" | "GET" | "PATCH" | "POST" | "PUT";
 }
 
-const unauthorizedState: { handler: (() => void) | null } = { handler: null };
+const unauthorizedState: { handler: (() => Promise<null | string>) | null } = { handler: null };
 
-export function setUnauthorizedHandler(handler: () => void): void {
+export function setUnauthorizedHandler(handler: () => Promise<null | string>): void {
   unauthorizedState.handler = handler;
 }
 
 export async function apiRequest<T>(path: string, options: ApiRequestOptions = {}): Promise<T> {
+  const { accessToken } = options;
+  let response = await sendRequest(path, options);
+
+  if (accessToken && response.status === 401) {
+    const freshToken = await unauthorizedState.handler?.();
+    if (freshToken) {
+      response = await sendRequest(path, { ...options, accessToken: freshToken });
+    }
+  }
+
+  return parseResponse<T>(response);
+}
+
+async function sendRequest(path: string, options: ApiRequestOptions): Promise<Response> {
   const { method = "GET", body, accessToken } = options;
   const headers = buildHeaders(body, accessToken);
 
-  let response: Response;
   try {
-    response = await fetch(`${apiBaseUrl}${path}`, {
+    return await fetch(`${apiBaseUrl}${path}`, {
       method,
       headers,
       body: body === undefined ? undefined : JSON.stringify(body),
@@ -43,11 +56,10 @@ export async function apiRequest<T>(path: string, options: ApiRequestOptions = {
   } catch {
     throw new ApiError(0, "Не удалось связаться с сервером");
   }
+}
 
+async function parseResponse<T>(response: Response): Promise<T> {
   if (!response.ok) {
-    if (accessToken && response.status === 401) {
-      unauthorizedState.handler?.();
-    }
     throw await createApiError(response);
   }
 
