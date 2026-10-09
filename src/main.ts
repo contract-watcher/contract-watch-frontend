@@ -24,16 +24,22 @@ router.beforeEach(async (to) => {
   }
 
   if (authStore.isAuthenticated && to.meta.publicOnly) {
-    return { name: "home" };
+    return { name: "projects" };
   }
 });
 
-setUnauthorizedHandler(() => {
-  void authStore.refresh().then(() => {
-    if (!authStore.isAuthenticated && router.currentRoute.value.meta.requiresAuth) {
-      void router.push({ name: "login" });
-    }
-  });
+setUnauthorizedHandler(async () => {
+  await authStore.refresh();
+
+  if (authStore.isAuthenticated) {
+    return authStore.accessToken;
+  }
+
+  if (router.currentRoute.value.meta.requiresAuth) {
+    void router.push({ name: "login" });
+  }
+
+  return null;
 });
 
 app.mount("#app");
