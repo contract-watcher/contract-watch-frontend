@@ -65,10 +65,18 @@ function openCreateModal(): void {
   modalOpen.value = true;
 }
 
-function submitCreate(): void {
-  void formRef.value?.validate().then(() => {
-    createProjectMutation(form.name);
-  });
+async function submitCreate(): Promise<void> {
+  if (!formRef.value) {
+    return;
+  }
+
+  try {
+    await formRef.value.validate();
+  } catch {
+    return;
+  }
+
+  createProjectMutation(form.name);
 }
 </script>
 

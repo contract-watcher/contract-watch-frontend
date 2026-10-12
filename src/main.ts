@@ -4,7 +4,7 @@ import { VueQueryPlugin } from "@tanstack/vue-query";
 import { createPinia } from "pinia";
 import { createApp } from "vue";
 
-import { setUnauthorizedHandler } from "@/api/client";
+import { ApiError, setUnauthorizedHandler } from "@/api/client";
 import App from "@/App.vue";
 import router from "@/router";
 import { useAuthStore } from "@/stores/auth";
@@ -12,7 +12,19 @@ import { useAuthStore } from "@/stores/auth";
 const app = createApp(App);
 const pinia = createPinia();
 
-app.use(pinia).use(router).use(VueQueryPlugin);
+app
+  .use(pinia)
+  .use(router)
+  .use(VueQueryPlugin, {
+    queryClientConfig: {
+      defaultOptions: {
+        queries: {
+          retry: (failureCount, error) =>
+            !(error instanceof ApiError && error.status >= 400 && error.status < 500) && failureCount < 3,
+        },
+      },
+    },
+  });
 
 const authStore = useAuthStore(pinia);
 
