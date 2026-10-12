@@ -28,6 +28,12 @@ const router = createRouter({
       meta: { requiresAuth: true },
     },
     {
+      name: "project-integration",
+      path: "/projects/:projectId/integrations/:integrationId",
+      component: () => import("@/pages/IntegrationView.vue"),
+      meta: { requiresAuth: true },
+    },
+    {
       path: "/",
       redirect: { name: "projects" },
     },
