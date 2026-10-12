@@ -1,27 +1,111 @@
 <script setup lang="ts">
-import { ReloadOutlined } from "@ant-design/icons-vue";
-import { useQuery } from "@tanstack/vue-query";
-import { computed } from "vue";
-import { useRoute } from "vue-router";
+import type { FormInstance, Rule } from "ant-design-vue/es/form";
 
+import { InfoCircleOutlined, ReloadOutlined } from "@ant-design/icons-vue";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/vue-query";
+import { message } from "ant-design-vue";
+import { computed, reactive, ref } from "vue";
+import { useRoute, useRouter } from "vue-router";
+
+import type { IntegrationPayload } from "@/api/integrations";
+
+import { ApiError } from "@/api/client";
+import { createIntegration, getIntegrations } from "@/api/integrations";
 import { getProject } from "@/api/projects";
 import AppHeader from "@/components/AppHeader.vue";
 import { useAuthStore } from "@/stores/auth";
 
 const authStore = useAuthStore();
 const route = useRoute();
+const router = useRouter();
+const queryClient = useQueryClient();
 
 const projectId = computed(() => String(route.params.projectId ?? ""));
 
+const formRef = ref<FormInstance>();
+const form = reactive({ description: "", name: "", slug: "" });
+const modalOpen = ref(false);
+const slugHint =
+  "Короткий идентификатор интеграции, например yookassa. Должен быть уникален в проекте. Допустимы только строчные латинские буквы, цифры и дефис — до 100 символов.";
+const rules: Record<string, Rule[]> = {
+  description: [{ max: 1000, message: "Не больше 1000 символов", trigger: "blur" }],
+  name: [
+    { message: "Введите название", required: true, trigger: "blur" },
+    { max: 200, message: "Не больше 200 символов", trigger: "blur" },
+  ],
+  slug: [
+    { message: "Введите код интеграции", required: true, trigger: "blur" },
+    { message: "Только строчные латинские буквы, цифры и дефис", pattern: /^[a-z0-9-]+$/, trigger: "blur" },
+    { max: 100, message: "Не больше 100 символов", trigger: "blur" },
+  ],
+};
+
 const {
   data: project,
-  isError,
-  isPending,
-  refetch,
+  isError: isProjectError,
+  isPending: isProjectPending,
+  refetch: refetchProject,
 } = useQuery({
   queryKey: ["project", projectId],
   queryFn: () => getProject(projectId.value, authStore.accessToken),
 });
+
+const { data, isError, isPending, refetch } = useQuery({
+  queryKey: ["integrations", projectId],
+  queryFn: () => getIntegrations(projectId.value, authStore.accessToken),
+});
+const integrations = computed(() => data.value ?? []);
+
+const { isPending: isCreating, mutate: createIntegrationMutation } = useMutation({
+  mutationFn: (payload: IntegrationPayload) => createIntegration(projectId.value, payload, authStore.accessToken),
+  onSuccess: async () => {
+    message.success("Интеграция создана");
+    modalOpen.value = false;
+    await queryClient.invalidateQueries({ queryKey: ["integrations", projectId.value] });
+  },
+  onError: (error) => {
+    message.error(errorMessage(error));
+  },
+});
+
+function errorMessage(error: unknown): string {
+  if (error instanceof ApiError) {
+    if (error.status === 409) {
+      return "Такой код уже занят в этом проекте";
+    }
+    return error.status === 400 ? "Проверьте заполненные поля" : error.message;
+  }
+  return "Что-то пошло не так, попробуйте ещё раз";
+}
+
+function openCreateModal(): void {
+  form.description = "";
+  form.name = "";
+  form.slug = "";
+  modalOpen.value = true;
+}
+
+function openIntegration(integrationId: string): void {
+  void router.push({ name: "project-integration", params: { integrationId, projectId: projectId.value } });
+}
+
+async function submitCreate(): Promise<void> {
+  if (!formRef.value) {
+    return;
+  }
+
+  try {
+    await formRef.value.validate();
+  } catch {
+    return;
+  }
+
+  createIntegrationMutation({
+    description: form.description.trim() || undefined,
+    name: form.name,
+    slug: form.slug,
+  });
+}
 </script>
 
 <template>
@@ -35,11 +119,11 @@ const {
         <a-breadcrumb-item v-if="project">{{ project.name }}</a-breadcrumb-item>
       </a-breadcrumb>
 
-      <a-skeleton v-if="isPending" active :paragraph="{ rows: 1 }" :title="{ width: '30%' }" />
+      <a-skeleton v-if="isProjectPending || isPending" active :paragraph="{ rows: 3 }" :title="{ width: '30%' }" />
 
-      <a-alert v-else-if="isError" message="Не удалось загрузить проект" show-icon type="error">
+      <a-alert v-else-if="isProjectError" message="Не удалось загрузить проект" show-icon type="error">
         <template #action>
-          <a-button size="small" type="text" @click="refetch()">
+          <a-button size="small" type="text" @click="refetchProject()">
             <template #icon>
               <ReloadOutlined />
             </template>
@@ -48,10 +132,68 @@ const {
         </template>
       </a-alert>
 
-      <a-typography-title v-else class="integrations-page__title" :level="3">
-        Интеграции проекта «{{ project?.name }}»
-      </a-typography-title>
+      <template v-else>
+        <div class="integrations-page__header">
+          <a-typography-title class="integrations-page__title" :level="3">Интеграции</a-typography-title>
+          <a-button type="primary" @click="openCreateModal">Создать интеграцию</a-button>
+        </div>
+
+        <a-alert v-if="isError" message="Не удалось загрузить интеграции" show-icon type="error">
+          <template #action>
+            <a-button size="small" type="text" @click="refetch()">
+              <template #icon>
+                <ReloadOutlined />
+              </template>
+              Повторить
+            </a-button>
+          </template>
+        </a-alert>
+
+        <a-empty v-else-if="integrations.length === 0" description="Интеграций пока нет" />
+
+        <a-list v-else :data-source="integrations">
+          <template #renderItem="{ item }">
+            <a-list-item class="integrations-page__item" @click="openIntegration(item.id)">
+              <a-list-item-meta :title="item.name">
+                <template #description>
+                  <a-typography-text code>{{ item.slug }}</a-typography-text>
+                  <span v-if="item.description"> · {{ item.description }}</span>
+                </template>
+              </a-list-item-meta>
+            </a-list-item>
+          </template>
+        </a-list>
+      </template>
     </a-layout-content>
+
+    <a-modal
+      v-model:open="modalOpen"
+      :confirm-loading="isCreating"
+      cancel-text="Отмена"
+      ok-text="Создать"
+      title="Новая интеграция"
+      @ok="submitCreate"
+    >
+      <a-form ref="formRef" :model="form" :rules="rules" layout="vertical" @finish="submitCreate">
+        <a-form-item label="Название" name="name">
+          <a-input v-model:value="form.name" placeholder="Например, «ЮKassa»" />
+        </a-form-item>
+        <a-form-item name="slug">
+          <template #label>
+            Код интеграции
+            <a-tooltip :title="slugHint">
+              <a-typography-text class="integrations-page__label-icon" type="secondary">
+                <InfoCircleOutlined />
+              </a-typography-text>
+            </a-tooltip>
+          </template>
+          <a-input v-model:value="form.slug" placeholder="yookassa" />
+        </a-form-item>
+        <a-form-item label="Описание" name="description">
+          <a-textarea v-model:value="form.description" :rows="3" placeholder="Необязательно" />
+        </a-form-item>
+      </a-form>
+    </a-modal>
   </a-layout>
 </template>
 
@@ -71,7 +213,22 @@ const {
   margin-bottom: 8px;
 }
 
+.integrations-page__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 16px;
+}
+
 .integrations-page__title {
   margin: 0;
+}
+
+.integrations-page__item {
+  cursor: pointer;
+}
+
+.integrations-page__label-icon {
+  margin-inline-start: 4px;
 }
 </style>
