@@ -18,7 +18,7 @@ RUN bun run build
 
 FROM nginx:alpine
 
-ENV API_UPSTREAM=http://gateway:8080
+ENV API_UPSTREAM=http://core:8080
 
 COPY --from=builder /app/dist /usr/share/nginx/html
 COPY default.conf.template /etc/nginx/templates/default.conf.template
