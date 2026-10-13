@@ -13,6 +13,7 @@ import { ApiError } from "@/api/client";
 import { deleteIntegration, getIntegration, updateIntegration } from "@/api/integrations";
 import { getProject } from "@/api/projects";
 import AppHeader from "@/components/AppHeader.vue";
+import IntegrationKeysPanel from "@/components/IntegrationKeysPanel.vue";
 import { useAuthStore } from "@/stores/auth";
 
 const authStore = useAuthStore();
@@ -199,7 +200,9 @@ function submitSave(): void {
             <a-button :loading="isDeleting" danger @click="confirmDelete">Удалить интеграцию</a-button>
           </a-card>
         </a-tab-pane>
-        <a-tab-pane key="key" disabled tab="Ключ" />
+        <a-tab-pane key="key" tab="Ключ">
+          <IntegrationKeysPanel :integration-id="integrationId" />
+        </a-tab-pane>
         <a-tab-pane key="rules" disabled tab="Правила" />
         <a-tab-pane key="sdk" disabled tab="SDK" />
         <a-tab-pane key="history" disabled tab="История" />
