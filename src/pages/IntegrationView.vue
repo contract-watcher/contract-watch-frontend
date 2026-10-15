@@ -13,6 +13,7 @@ import { ApiError } from "@/api/client";
 import { deleteIntegration, getIntegration, updateIntegration } from "@/api/integrations";
 import { getProject } from "@/api/projects";
 import AppHeader from "@/components/AppHeader.vue";
+import IntegrationContractsPanel from "@/components/IntegrationContractsPanel.vue";
 import IntegrationKeysPanel from "@/components/IntegrationKeysPanel.vue";
 import { useAuthStore } from "@/stores/auth";
 
@@ -203,7 +204,9 @@ function submitSave(): void {
         <a-tab-pane key="key" tab="Ключ">
           <IntegrationKeysPanel :integration-id="integrationId" />
         </a-tab-pane>
-        <a-tab-pane key="rules" disabled tab="Правила" />
+        <a-tab-pane key="rules" tab="Правила">
+          <IntegrationContractsPanel :integration-id="integrationId" />
+        </a-tab-pane>
         <a-tab-pane key="sdk" disabled tab="SDK" />
         <a-tab-pane key="history" disabled tab="История" />
         <a-tab-pane key="groups" disabled tab="Группы" />
