@@ -1,4 +1,4 @@
-FROM oven/bun:1.3.11-alpine AS builder
+FROM --platform=$BUILDPLATFORM oven/bun:1.3.11-alpine AS builder
 
 RUN apk add --no-cache nodejs
 
