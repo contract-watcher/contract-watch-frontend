@@ -90,7 +90,7 @@ function openIntegration(integrationId: string): void {
 }
 
 async function submitCreate(): Promise<void> {
-  if (!formRef.value) {
+  if (isCreating.value || !formRef.value) {
     return;
   }
 

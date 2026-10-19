@@ -48,6 +48,10 @@ function errorMessage(error: unknown): string {
 }
 
 async function onSubmit(): Promise<void> {
+  if (submitting.value) {
+    return;
+  }
+
   submitting.value = true;
   try {
     await authStore.register(form.name, form.email, form.password);

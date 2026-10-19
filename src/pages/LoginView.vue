@@ -37,6 +37,10 @@ function errorMessage(error: unknown): string {
 }
 
 async function onSubmit(): Promise<void> {
+  if (submitting.value) {
+    return;
+  }
+
   submitting.value = true;
   try {
     await authStore.login(form.email, form.password);
