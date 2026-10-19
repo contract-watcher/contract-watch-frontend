@@ -319,7 +319,7 @@ function removeRuleField(index: number): void {
 }
 
 async function submitCreateContract(): Promise<void> {
-  if (!formRef.value) {
+  if (isCreatingContract.value || !formRef.value) {
     return;
   }
 
@@ -337,7 +337,7 @@ async function submitCreateContract(): Promise<void> {
 }
 
 function submitCreateVersion(): void {
-  if (selectedContractId.value === null) {
+  if (isCreatingVersion.value || selectedContractId.value === null) {
     return;
   }
 

@@ -130,6 +130,10 @@ function errorMessage(error: unknown): string {
 }
 
 function submitSave(): void {
+  if (isUpdating.value) {
+    return;
+  }
+
   updateIntegrationMutation({
     description: form.description.trim() || undefined,
     name: form.name,
