@@ -2,7 +2,7 @@
 import type { TableColumnsType } from "ant-design-vue";
 import type { FormInstance, Rule } from "ant-design-vue/es/form";
 
-import { ReloadOutlined } from "@ant-design/icons-vue";
+import { ArrowLeftOutlined, ReloadOutlined } from "@ant-design/icons-vue";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/vue-query";
 import { message, Modal, theme } from "ant-design-vue";
 import { computed, reactive, ref } from "vue";
@@ -46,6 +46,34 @@ const { data, isError, isPending, refetch } = useQuery({
   queryFn: () => getApiKeys(integrationId.value, authStore.accessToken),
 });
 const keys = computed(() => data.value ?? []);
+const sdkHowtoVisible = ref(false);
+const hasActiveKey = computed(() => keys.value.some((key) => !key.isRevoked));
+
+const coreUrl = import.meta.env.VITE_CORE_URL || "http://localhost:8080";
+const installCommand = "dotnet add package ContractWatcher.SDK";
+
+const settingsSample = `{
+  "ContractWatcher": {
+    "CoreUrl": "${coreUrl}",
+    "IntegrationKey": "<ваш ключ интеграции>"
+  }
+}`;
+
+const registrationSample = `using ContractWatcher.SDK.AspNetCore.Extensions;
+using ContractWatcher.SDK.Configuration.Extensions;
+using ContractWatcher.SDK.Configuration.Options;
+
+builder.Services
+    .AddOptions<ContractWatcherOptions>()
+    .Bind(builder.Configuration.GetSection("ContractWatcher"));
+
+builder.Services
+    .AddContractWatcher()
+    .AddDefaults();
+
+builder.Services
+    .AddControllers()
+    .AddContractWatcher();`;
 
 const keyBoxStyle = computed(() => ({
   background: token.value.colorFillQuaternary,
@@ -121,6 +149,14 @@ function openCreateModal(): void {
   modalOpen.value = true;
 }
 
+function openSdkHowto(): void {
+  sdkHowtoVisible.value = true;
+}
+
+function closeSdkHowto(): void {
+  sdkHowtoVisible.value = false;
+}
+
 async function submitCreate(): Promise<void> {
   if (isCreating.value || !formRef.value) {
     return;
@@ -137,9 +173,12 @@ async function submitCreate(): Promise<void> {
 </script>
 
 <template>
-  <a-card title="API-ключи">
+  <a-card v-if="!sdkHowtoVisible" title="API-ключи">
     <template #extra>
-      <a-button type="primary" @click="openCreateModal">Выпустить ключ</a-button>
+      <a-space>
+        <a-button @click="openSdkHowto">Как подключить SDK?</a-button>
+        <a-button type="primary" @click="openCreateModal">Выпустить ключ</a-button>
+      </a-space>
     </template>
 
     <a-alert v-if="isError" message="Не удалось загрузить ключи" show-icon type="error">
@@ -218,6 +257,82 @@ async function submitCreate(): Promise<void> {
       </template>
     </a-modal>
   </a-card>
+
+  <template v-else>
+    <a-button class="integration-keys-panel__back" type="text" @click="closeSdkHowto">
+      <template #icon>
+        <ArrowLeftOutlined />
+      </template>
+      К списку ключей
+    </a-button>
+
+    <a-card title="Подключение SDK">
+      <a-typography-paragraph type="secondary">
+        Подключите библиотеку ContractWatch в приложении, которое принимает вебхуки.
+      </a-typography-paragraph>
+
+      <a-typography-title class="integration-keys-panel__sdk-title" :copyable="{ text: installCommand }" :level="5">
+        1. Установка
+      </a-typography-title>
+      <a-typography-paragraph type="secondary">Пакет ContractWatcher.SDK для .NET 10.</a-typography-paragraph>
+      <div class="integration-keys-panel__sdk-box integration-keys-panel__sdk-key-box" :style="keyBoxStyle">
+        <a-typography-text code>{{ installCommand }}</a-typography-text>
+      </div>
+
+      <a-typography-title class="integration-keys-panel__sdk-title" :copyable="{ text: settingsSample }" :level="5">
+        2. Настройка
+      </a-typography-title>
+      <a-typography-paragraph type="secondary">
+        Добавьте адрес Core и ключ интеграции в <a-typography-text code>appsettings.json</a-typography-text>.
+      </a-typography-paragraph>
+      <a-typography-paragraph class="integration-keys-panel__sdk-hint" type="secondary">
+        Вместо «ваш ключ интеграции» подставьте ключ из таблицы — полный ключ показывается один раз при выпуске.
+      </a-typography-paragraph>
+      <div class="integration-keys-panel__sdk-box integration-keys-panel__sdk-code-box" :style="keyBoxStyle">
+        <a-typography-paragraph class="integration-keys-panel__sdk-code">
+          {{ settingsSample }}
+        </a-typography-paragraph>
+      </div>
+
+      <a-typography-title class="integration-keys-panel__sdk-title" :copyable="{ text: registrationSample }" :level="5">
+        3. Регистрация
+      </a-typography-title>
+      <a-typography-paragraph type="secondary">
+        Зарегистрируйте SDK в <a-typography-text code>Program.cs</a-typography-text>.
+      </a-typography-paragraph>
+      <div class="integration-keys-panel__sdk-box integration-keys-panel__sdk-code-box" :style="keyBoxStyle">
+        <a-typography-paragraph class="integration-keys-panel__sdk-code">
+          {{ registrationSample }}
+        </a-typography-paragraph>
+      </div>
+
+      <a-alert
+        class="integration-keys-panel__sdk-alert"
+        message="Для полного ознакомления обратитесь к документации"
+        show-icon
+        type="info"
+      >
+        <template #action>
+          <a-button
+            href="https://github.com/contract-watcher/contract-watcher-sdk#quick-start-aspnet-core"
+            rel="noopener noreferrer"
+            target="_blank"
+          >
+            Открыть документацию
+          </a-button>
+        </template>
+      </a-alert>
+
+      <a-alert
+        v-if="!hasActiveKey"
+        class="integration-keys-panel__sdk-alert"
+        description="Выпустите ключ — без него SDK не сможет получать контракт и отправлять отчёты."
+        message="Активного ключа нет"
+        show-icon
+        type="warning"
+      />
+    </a-card>
+  </template>
 </template>
 
 <style scoped>
@@ -230,5 +345,44 @@ async function submitCreate(): Promise<void> {
 
 .integration-keys-panel__key {
   word-break: break-all;
+}
+
+.integration-keys-panel__back {
+  margin-bottom: 8px;
+  padding-inline: 0;
+}
+
+.integration-keys-panel__sdk-title {
+  margin-top: 0;
+}
+
+.integration-keys-panel__sdk-box {
+  margin-bottom: 16px;
+  border-style: solid;
+  border-width: 1px;
+}
+
+.integration-keys-panel__sdk-key-box {
+  text-align: center;
+}
+
+.integration-keys-panel__sdk-code-box {
+  overflow-x: auto;
+}
+
+.integration-keys-panel__sdk-code {
+  margin-bottom: 0;
+  font-family: SFMono-Regular, Consolas, "Liberation Mono", Menlo, Courier, monospace;
+  font-size: 13px;
+  line-height: 1.6;
+  white-space: pre;
+}
+
+.integration-keys-panel__sdk-hint {
+  margin-bottom: 16px;
+}
+
+.integration-keys-panel__sdk-alert {
+  margin-bottom: 16px;
 }
 </style>

@@ -205,13 +205,12 @@ function submitSave(): void {
             <a-button :loading="isDeleting" danger @click="confirmDelete">Удалить интеграцию</a-button>
           </a-card>
         </a-tab-pane>
-        <a-tab-pane key="key" tab="Ключ">
+        <a-tab-pane key="key" tab="Ключи SDK">
           <IntegrationKeysPanel :integration-id="integrationId" />
         </a-tab-pane>
         <a-tab-pane key="rules" tab="Правила">
           <IntegrationContractsPanel :integration-id="integrationId" />
         </a-tab-pane>
-        <a-tab-pane key="sdk" disabled tab="SDK" />
         <a-tab-pane key="history" disabled tab="История" />
         <a-tab-pane key="groups" disabled tab="Группы" />
         <a-tab-pane key="summary" disabled tab="Сводка" />
