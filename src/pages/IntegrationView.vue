@@ -17,6 +17,7 @@ import IntegrationContractsPanel from "@/components/IntegrationContractsPanel.vu
 import IntegrationGroupsPanel from "@/components/IntegrationGroupsPanel.vue";
 import IntegrationKeysPanel from "@/components/IntegrationKeysPanel.vue";
 import IntegrationReportsPanel from "@/components/IntegrationReportsPanel.vue";
+import IntegrationSummaryPanel from "@/components/IntegrationSummaryPanel.vue";
 import { useAuthStore } from "@/stores/auth";
 
 const authStore = useAuthStore();
@@ -219,7 +220,9 @@ function submitSave(): void {
         <a-tab-pane key="groups" tab="Группы">
           <IntegrationGroupsPanel :integration-id="integrationId" />
         </a-tab-pane>
-        <a-tab-pane key="summary" disabled tab="Сводка" />
+        <a-tab-pane key="summary" tab="Сводка">
+          <IntegrationSummaryPanel :integration-id="integrationId" />
+        </a-tab-pane>
       </a-tabs>
     </a-layout-content>
   </a-layout>

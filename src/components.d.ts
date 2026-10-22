@@ -41,7 +41,6 @@ declare module 'vue' {
     APagination: typeof import('ant-design-vue/es')['Pagination']
     AppHeader: typeof import('./components/AppHeader.vue')['default']
     ARangePicker: typeof import('ant-design-vue/es/date-picker/dayjs')['RangePicker']
-    AResult: typeof import('ant-design-vue/es')['Result']
     ARow: typeof import('ant-design-vue/es')['Row']
     ASelect: typeof import('ant-design-vue/es')['Select']
     ASkeleton: typeof import('ant-design-vue/es')['Skeleton']
@@ -61,6 +60,7 @@ declare module 'vue' {
     IntegrationGroupsPanel: typeof import('./components/IntegrationGroupsPanel.vue')['default']
     IntegrationKeysPanel: typeof import('./components/IntegrationKeysPanel.vue')['default']
     IntegrationReportsPanel: typeof import('./components/IntegrationReportsPanel.vue')['default']
+    IntegrationSummaryPanel: typeof import('./components/IntegrationSummaryPanel.vue')['default']
     RouterLink: typeof import('vue-router')['RouterLink']
     RouterView: typeof import('vue-router')['RouterView']
   }
