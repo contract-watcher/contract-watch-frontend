@@ -617,6 +617,7 @@ function violationRowKey(_record: ReportViolation, index?: number): number {
 }
 
 .integration-reports-panel__filters {
+  align-items: flex-start;
   display: flex;
   flex-wrap: wrap;
   gap: 12px;
