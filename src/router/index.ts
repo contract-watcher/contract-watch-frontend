@@ -16,6 +16,17 @@ const router = createRouter({
       meta: { publicOnly: true },
     },
     {
+      name: "confirm-email",
+      path: "/confirm-email",
+      component: () => import("@/pages/ConfirmEmailView.vue"),
+    },
+    {
+      name: "profile",
+      path: "/profile",
+      component: () => import("@/pages/ProfileView.vue"),
+      meta: { requiresAuth: true },
+    },
+    {
       name: "projects",
       path: "/projects",
       component: () => import("@/pages/ProjectsView.vue"),
