@@ -19,6 +19,25 @@ export interface ContractPayload {
   slug: string;
 }
 
+export interface ContractSearchItem {
+  id: string;
+  name: string;
+  slug: string;
+}
+
+export interface ContractSearchPage {
+  items: ContractSearchItem[];
+  limit: number;
+  offset: number;
+  total: number;
+}
+
+export interface ContractSearchQuery {
+  limit?: number;
+  offset?: number;
+  search?: string;
+}
+
 export interface ContractRule {
   fieldName: string;
   nullable: boolean;
@@ -67,6 +86,30 @@ export function createContractVersion(
 
 export function getContracts(integrationId: string, accessToken: null | string): Promise<Contract[]> {
   return apiRequest<Contract[]>(`/api/integrations/${integrationId}/contracts`, { accessToken });
+}
+
+export function searchContracts(
+  integrationId: string,
+  query: ContractSearchQuery = {},
+  accessToken: null | string,
+): Promise<ContractSearchPage> {
+  const params = new URLSearchParams();
+
+  if (query.search) {
+    params.set("search", query.search);
+  }
+  if (query.offset !== undefined) {
+    params.set("offset", String(query.offset));
+  }
+  if (query.limit !== undefined) {
+    params.set("limit", String(query.limit));
+  }
+
+  const suffix = params.size > 0 ? `?${params.toString()}` : "";
+
+  return apiRequest<ContractSearchPage>(`/api/integrations/${integrationId}/contracts/search${suffix}`, {
+    accessToken,
+  });
 }
 
 export function getContractVersions(contractId: string, accessToken: null | string): Promise<ContractVersion[]> {

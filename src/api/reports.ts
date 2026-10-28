@@ -41,6 +41,7 @@ export interface ReportsPage {
 }
 
 export interface ReportsQuery {
+  contractId?: string[];
   from?: string;
   limit?: number;
   offset?: number;
@@ -61,6 +62,11 @@ export function getReports(
 ): Promise<ReportsPage> {
   const params = new URLSearchParams();
 
+  if (query.contractId) {
+    for (const contractId of query.contractId) {
+      params.append("contractId", contractId);
+    }
+  }
   if (query.from) {
     params.set("from", query.from);
   }
