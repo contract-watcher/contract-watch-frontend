@@ -16,6 +16,7 @@ import AppHeader from "@/components/AppHeader.vue";
 import IntegrationContractsPanel from "@/components/IntegrationContractsPanel.vue";
 import IntegrationGroupsPanel from "@/components/IntegrationGroupsPanel.vue";
 import IntegrationKeysPanel from "@/components/IntegrationKeysPanel.vue";
+import IntegrationNotificationsPanel from "@/components/IntegrationNotificationsPanel.vue";
 import IntegrationReportsPanel from "@/components/IntegrationReportsPanel.vue";
 import IntegrationSummaryPanel from "@/components/IntegrationSummaryPanel.vue";
 import { useAuthStore } from "@/stores/auth";
@@ -198,6 +199,8 @@ function submitSave(): void {
               </a-form-item>
             </a-form>
 
+            <a-divider />
+            <IntegrationNotificationsPanel :integration-id="integrationId" />
             <a-divider />
 
             <a-typography-title class="integration-page__section" :level="4">Удаление</a-typography-title>

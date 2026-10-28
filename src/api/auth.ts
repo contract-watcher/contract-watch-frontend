@@ -1,5 +1,10 @@
 import { apiRequest } from "@/api/client";
 
+export interface Account {
+  email: string;
+  emailConfirmed: boolean;
+}
+
 export interface AuthTokens {
   accessToken: string;
   accessTokenExpiresAt: string;
@@ -18,6 +23,14 @@ export interface RegisterPayload {
   password: string;
 }
 
+export function confirmEmail(token: string): Promise<void> {
+  return apiRequest<void>("/api/auth/email-confirmation/confirm", { body: { token }, method: "POST" });
+}
+
+export function getAccount(accessToken: null | string): Promise<Account> {
+  return apiRequest<Account>("/api/auth/me", { accessToken });
+}
+
 export function login(payload: LoginPayload): Promise<AuthTokens> {
   return apiRequest<AuthTokens>("/api/auth/login", { method: "POST", body: payload });
 }
@@ -32,6 +45,10 @@ export function refresh(refreshToken: string): Promise<AuthTokens> {
 
 export function register(payload: RegisterPayload): Promise<AuthTokens> {
   return apiRequest<AuthTokens>("/api/auth/register", { method: "POST", body: payload });
+}
+
+export function requestEmailConfirmation(accessToken: null | string): Promise<void> {
+  return apiRequest<void>("/api/auth/email-confirmation", { accessToken, method: "POST" });
 }
 
 export function decodeEmailFromToken(accessToken: string): string {

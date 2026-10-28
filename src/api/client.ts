@@ -63,7 +63,12 @@ async function parseResponse<T>(response: Response): Promise<T> {
     throw await createApiError(response);
   }
 
-  return response.status === 204 ? (undefined as T) : ((await response.json()) as T);
+  if (response.status === 204) {
+    return undefined as T;
+  }
+
+  const text = await response.text();
+  return text ? (JSON.parse(text) as T) : (undefined as T);
 }
 
 function buildHeaders(body: unknown, accessToken?: null | string): Record<string, string> {
