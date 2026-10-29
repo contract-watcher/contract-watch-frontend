@@ -174,6 +174,21 @@ function submitSave(): void {
       </a-alert>
 
       <a-tabs v-else-if="integration">
+        <a-tab-pane key="summary" tab="Сводка">
+          <IntegrationSummaryPanel :integration-id="integrationId" />
+        </a-tab-pane>
+        <a-tab-pane key="history" tab="История">
+          <IntegrationReportsPanel :integration-id="integrationId" />
+        </a-tab-pane>
+        <a-tab-pane key="groups" tab="Группы">
+          <IntegrationGroupsPanel :integration-id="integrationId" />
+        </a-tab-pane>
+        <a-tab-pane key="key" tab="Ключи SDK">
+          <IntegrationKeysPanel :integration-id="integrationId" />
+        </a-tab-pane>
+        <a-tab-pane key="rules" tab="Правила">
+          <IntegrationContractsPanel :integration-id="integrationId" />
+        </a-tab-pane>
         <a-tab-pane key="settings" tab="Настройки">
           <a-card>
             <a-form :model="form" :rules="rules" layout="vertical" @finish="submitSave">
@@ -210,21 +225,6 @@ function submitSave(): void {
             </a-typography-paragraph>
             <a-button :loading="isDeleting" danger @click="confirmDelete">Удалить интеграцию</a-button>
           </a-card>
-        </a-tab-pane>
-        <a-tab-pane key="key" tab="Ключи SDK">
-          <IntegrationKeysPanel :integration-id="integrationId" />
-        </a-tab-pane>
-        <a-tab-pane key="rules" tab="Правила">
-          <IntegrationContractsPanel :integration-id="integrationId" />
-        </a-tab-pane>
-        <a-tab-pane key="history" tab="История">
-          <IntegrationReportsPanel :integration-id="integrationId" />
-        </a-tab-pane>
-        <a-tab-pane key="groups" tab="Группы">
-          <IntegrationGroupsPanel :integration-id="integrationId" />
-        </a-tab-pane>
-        <a-tab-pane key="summary" tab="Сводка">
-          <IntegrationSummaryPanel :integration-id="integrationId" />
         </a-tab-pane>
       </a-tabs>
     </a-layout-content>

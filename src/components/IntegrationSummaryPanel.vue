@@ -1,10 +1,12 @@
 <script setup lang="ts">
 import type { TableColumnsType } from "ant-design-vue";
+import type { Dayjs } from "dayjs";
 
 import { ReloadOutlined } from "@ant-design/icons-vue";
-import { useQuery } from "@tanstack/vue-query";
+import { keepPreviousData, useQuery } from "@tanstack/vue-query";
 import { theme } from "ant-design-vue";
-import { computed } from "vue";
+import dayjs from "dayjs";
+import { computed, ref } from "vue";
 
 import type { ViolationGroup } from "@/api/violation-groups";
 
@@ -27,6 +29,45 @@ const columns: TableColumnsType<ViolationGroup> = [
   { key: "lastSeenAt", title: "Последнее появление" },
 ];
 
+const rangePresets = [
+  {
+    label: "Сегодня",
+    value: [dayjs().startOf("day"), dayjs().startOf("day")],
+  },
+  {
+    label: "Последние 7 дней",
+    value: [dayjs().subtract(6, "day").startOf("day"), dayjs().startOf("day")],
+  },
+  {
+    label: "Последние 30 дней",
+    value: [dayjs().subtract(29, "day").startOf("day"), dayjs().startOf("day")],
+  },
+  {
+    label: "Всё время",
+    value: null as unknown as [Dayjs, Dayjs],
+  },
+];
+
+const selectedRange = ref<[Dayjs, Dayjs] | undefined>([dayjs().startOf("day"), dayjs().startOf("day")]);
+const hasPeriod = computed(() => Boolean(selectedRange.value?.[0] && selectedRange.value[1]));
+
+const periodQuery = computed(() => {
+  if (!hasPeriod.value) {
+    return {};
+  }
+
+  const firstDay = selectedRange.value?.[0];
+  const lastDay = selectedRange.value?.[1];
+  if (!firstDay || !lastDay) {
+    return {};
+  }
+
+  return {
+    from: firstDay.startOf("day").toISOString(),
+    to: lastDay.startOf("day").add(1, "day").toISOString(),
+  };
+});
+
 const {
   data,
   error: queryError,
@@ -35,18 +76,55 @@ const {
   isPending,
   refetch,
 } = useQuery({
-  queryKey: ["integration-summary", integrationId],
-  queryFn: () => getIntegrationSummary(integrationId.value, authStore.accessToken),
+  queryKey: ["integration-summary", integrationId, periodQuery],
+  queryFn: () => getIntegrationSummary(integrationId.value, periodQuery.value, authStore.accessToken),
+  placeholderData: keepPreviousData,
 });
 
 const summary = computed(() => data.value);
 const groups = computed(() => summary.value?.latestViolationGroups ?? []);
+const isPeriodEmpty = computed(() => hasPeriod.value && summary.value?.totalReports === 0);
+
+function getFieldError(error: unknown, field: string): string | undefined {
+  if (!(error instanceof ApiError) || !error.fieldErrors) {
+    return undefined;
+  }
+
+  const key = Object.keys(error.fieldErrors).find((name) => name.toLowerCase() === field.toLowerCase());
+  return key ? error.fieldErrors[key]?.[0] : undefined;
+}
+
+const periodFilterError = computed(() =>
+  (getFieldError(queryError.value, "From") ?? getFieldError(queryError.value, "To"))
+    ? "Проверьте границы периода"
+    : undefined,
+);
+const isValidationError = computed(() => queryError.value instanceof ApiError && queryError.value.status === 400);
 
 const errorMessage = computed(() => {
-  if (queryError.value instanceof ApiError) {
-    return queryError.value.status === 503 ? "Сервис проверок недоступен, попробуйте позже" : queryError.value.message;
+  if (!(queryError.value instanceof ApiError)) {
+    return "Не удалось загрузить сводку";
   }
-  return "Не удалось загрузить сводку";
+
+  if (queryError.value.status === 400) {
+    return "Проверьте параметры периода";
+  }
+  if (queryError.value.status === 503) {
+    return "Не удалось загрузить данные, попробуйте позже";
+  }
+  return queryError.value.status === 404 ? "Интеграция не найдена" : queryError.value.message;
+});
+
+const lastCheckText = computed(() => {
+  if (!summary.value) {
+    return "";
+  }
+
+  if (summary.value.lastReceivedAt) {
+    return formatDateTime(summary.value.lastReceivedAt);
+  }
+
+  return hasPeriod.value ? "За выбранный период проверок нет" : "Проверок пока нет";
 });
 
 function formatDateTime(value: string): string {
@@ -71,44 +149,67 @@ function formatDateTime(value: string): string {
       </a-button>
     </template>
 
-    <a-alert v-if="isError" :description="errorMessage" message="Не удалось загрузить сводку" show-icon type="error">
-      <template #action>
-        <a-button size="small" type="text" @click="refetch()">
-          <template #icon>
-            <ReloadOutlined />
-          </template>
-          Повторить
-        </a-button>
-      </template>
-    </a-alert>
-
-    <a-skeleton v-else-if="isPending" active :paragraph="{ rows: 4 }" />
-
-    <template v-else-if="summary">
-      <a-row :gutter="[16, 16]">
-        <a-col :lg="6" :sm="12" :xs="24">
-          <a-statistic title="Всего проверок" :value="summary.totalReports" />
-        </a-col>
-        <a-col :lg="6" :sm="12" :xs="24">
-          <a-statistic title="Passed" :value="summary.passedReports" :value-style="{ color: token.colorSuccess }" />
-        </a-col>
-        <a-col :lg="6" :sm="12" :xs="24">
-          <a-statistic title="Failed" :value="summary.failedReports" :value-style="{ color: token.colorError }" />
-        </a-col>
-        <a-col :lg="6" :sm="12" :xs="24">
-          <a-statistic title="Групп нарушений" :value="summary.violationGroupCount" />
-        </a-col>
-      </a-row>
-
-      <a-divider />
-
-      <div class="integration-summary-panel__last">
-        <a-typography-text type="secondary">Последняя проверка: </a-typography-text>
-        <a-typography-text>
-          {{ summary.lastReceivedAt ? formatDateTime(summary.lastReceivedAt) : "Проверок пока нет" }}
-        </a-typography-text>
+    <div class="integration-summary-panel__frame" :style="{ borderColor: token.colorBorderSecondary }">
+      <div class="integration-summary-panel__period">
+        <a-range-picker
+          v-model:value="selectedRange"
+          class="integration-summary-panel__range-picker"
+          format="DD.MM.YYYY"
+          :placeholder="['Начальная дата', 'Конечная дата']"
+          :presets="rangePresets"
+        />
       </div>
 
+      <a-typography-text v-if="periodFilterError" class="integration-summary-panel__period-error" type="danger">
+        {{ periodFilterError }}
+      </a-typography-text>
+
+      <a-alert v-if="isError" :description="errorMessage" message="Не удалось загрузить сводку" show-icon type="error">
+        <template #action>
+          <a-button v-if="!isValidationError" size="small" type="text" @click="refetch()">
+            <template #icon>
+              <ReloadOutlined />
+            </template>
+            Повторить
+          </a-button>
+        </template>
+      </a-alert>
+
+      <a-skeleton v-else-if="isPending" active :paragraph="{ rows: 4 }" />
+
+      <template v-else-if="summary">
+        <a-alert
+          v-if="isPeriodEmpty && !isFetching"
+          class="integration-summary-panel__period-empty"
+          message="За выбранный период проверок нет"
+          show-icon
+          type="info"
+        />
+
+        <a-row :gutter="[16, 16]">
+          <a-col :lg="8" :sm="8" :xs="24">
+            <a-statistic title="Всего проверок" :value="summary.totalReports" />
+          </a-col>
+          <a-col :lg="8" :sm="8" :xs="24">
+            <a-statistic title="Passed" :value="summary.passedReports" :value-style="{ color: token.colorSuccess }" />
+          </a-col>
+          <a-col :lg="8" :sm="8" :xs="24">
+            <a-statistic title="Failed" :value="summary.failedReports" :value-style="{ color: token.colorError }" />
+          </a-col>
+        </a-row>
+
+        <a-divider />
+
+        <div class="integration-summary-panel__last">
+          <a-typography-text type="secondary">
+            {{ hasPeriod ? "Последняя проверка за период:" : "Последняя проверка:" }}
+          </a-typography-text>
+          <a-typography-text>{{ lastCheckText }}</a-typography-text>
+        </div>
+      </template>
+    </div>
+
+    <template v-if="summary">
       <a-typography-title class="integration-summary-panel__title" :level="5"> Последние группы </a-typography-title>
 
       <a-table
@@ -139,6 +240,34 @@ function formatDateTime(value: string): string {
 </template>
 
 <style scoped>
+.integration-summary-panel__frame {
+  border: 1px solid;
+  border-radius: 8px;
+  padding: 16px;
+}
+
+.integration-summary-panel__period {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.integration-summary-panel__range-picker {
+  width: 280px;
+}
+
+.integration-summary-panel__period-error {
+  display: block;
+  margin-bottom: 12px;
+  margin-top: -4px;
+}
+
+.integration-summary-panel__period-empty {
+  margin-bottom: 16px;
+}
+
 .integration-summary-panel__last {
   display: flex;
   flex-wrap: wrap;
@@ -148,5 +277,11 @@ function formatDateTime(value: string): string {
 .integration-summary-panel__title {
   margin-bottom: 16px;
   margin-top: 24px;
+}
+
+@media (max-width: 575px) {
+  .integration-summary-panel__range-picker {
+    width: 100%;
+  }
 }
 </style>

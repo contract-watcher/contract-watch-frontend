@@ -11,6 +11,26 @@ export interface IntegrationSummary {
   violationGroupCount: number;
 }
 
-export function getIntegrationSummary(integrationId: string, accessToken: null | string): Promise<IntegrationSummary> {
-  return apiRequest<IntegrationSummary>(`/api/integrations/${integrationId}/summary`, { accessToken });
+export interface IntegrationSummaryQuery {
+  from?: string;
+  to?: string;
+}
+
+export function getIntegrationSummary(
+  integrationId: string,
+  query: IntegrationSummaryQuery = {},
+  accessToken: null | string,
+): Promise<IntegrationSummary> {
+  const params = new URLSearchParams();
+
+  if (query.from) {
+    params.set("from", query.from);
+  }
+  if (query.to) {
+    params.set("to", query.to);
+  }
+
+  const suffix = params.size > 0 ? `?${params.toString()}` : "";
+
+  return apiRequest<IntegrationSummary>(`/api/integrations/${integrationId}/summary${suffix}`, { accessToken });
 }
