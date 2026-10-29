@@ -40,6 +40,7 @@ declare module 'vue' {
     AModal: typeof import('ant-design-vue/es')['Modal']
     APagination: typeof import('ant-design-vue/es')['Pagination']
     AppHeader: typeof import('./components/AppHeader.vue')['default']
+    AProgress: typeof import('ant-design-vue/es')['Progress']
     ARangePicker: typeof import('ant-design-vue/es/date-picker/dayjs')['RangePicker']
     AResult: typeof import('ant-design-vue/es')['Result']
     ARow: typeof import('ant-design-vue/es')['Row']
@@ -65,6 +66,7 @@ declare module 'vue' {
     IntegrationNotificationsPanel: typeof import('./components/IntegrationNotificationsPanel.vue')['default']
     IntegrationReportsPanel: typeof import('./components/IntegrationReportsPanel.vue')['default']
     IntegrationSummaryPanel: typeof import('./components/IntegrationSummaryPanel.vue')['default']
+    ProjectSummaryPanel: typeof import('./components/ProjectSummaryPanel.vue')['default']
     RouterLink: typeof import('vue-router')['RouterLink']
     RouterView: typeof import('vue-router')['RouterView']
   }

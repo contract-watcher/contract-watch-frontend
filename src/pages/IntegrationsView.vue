@@ -2,10 +2,10 @@
 import type { FormInstance, Rule } from "ant-design-vue/es/form";
 
 import { InfoCircleOutlined, ReloadOutlined } from "@ant-design/icons-vue";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/vue-query";
+import { useIsFetching, useMutation, useQuery, useQueryClient } from "@tanstack/vue-query";
 import { message } from "ant-design-vue";
 import { computed, reactive, ref } from "vue";
-import { useRoute, useRouter } from "vue-router";
+import { useRoute } from "vue-router";
 
 import type { IntegrationPayload } from "@/api/integrations";
 
@@ -13,18 +13,21 @@ import { ApiError } from "@/api/client";
 import { createIntegration, getIntegrations } from "@/api/integrations";
 import { getProject } from "@/api/projects";
 import AppHeader from "@/components/AppHeader.vue";
+import ProjectSummaryPanel from "@/components/ProjectSummaryPanel.vue";
 import { useAuthStore } from "@/stores/auth";
 
 const authStore = useAuthStore();
 const route = useRoute();
-const router = useRouter();
 const queryClient = useQueryClient();
 
 const projectId = computed(() => String(route.params.projectId ?? ""));
+const summaryFetching = useIsFetching({ queryKey: ["project-integration-summaries", projectId.value] });
+const isSummaryFetching = computed(() => summaryFetching.value > 0);
 
 const formRef = ref<FormInstance>();
 const form = reactive({ description: "", name: "", slug: "" });
 const modalOpen = ref(false);
+const summaryResetKey = ref(0);
 const slugHint =
   "Короткий идентификатор интеграции, например yookassa. Должен быть уникален в проекте. Допустимы только строчные латинские буквы, цифры и дефис — до 100 символов.";
 const rules: Record<string, Rule[]> = {
@@ -61,7 +64,9 @@ const { isPending: isCreating, mutate: createIntegrationMutation } = useMutation
   onSuccess: async () => {
     message.success("Интеграция создана");
     modalOpen.value = false;
+    summaryResetKey.value += 1;
     await queryClient.invalidateQueries({ queryKey: ["integrations", projectId.value] });
+    await queryClient.invalidateQueries({ queryKey: ["project-integration-summaries", projectId.value] });
   },
   onError: (error) => {
     message.error(errorMessage(error));
@@ -78,15 +83,15 @@ function errorMessage(error: unknown): string {
   return "Что-то пошло не так, попробуйте ещё раз";
 }
 
+function refreshSummary(): void {
+  void queryClient.invalidateQueries({ queryKey: ["project-integration-summaries", projectId.value] });
+}
+
 function openCreateModal(): void {
   form.description = "";
   form.name = "";
   form.slug = "";
   modalOpen.value = true;
-}
-
-function openIntegration(integrationId: string): void {
-  void router.push({ name: "project-integration", params: { integrationId, projectId: projectId.value } });
 }
 
 async function submitCreate(): Promise<void> {
@@ -135,8 +140,18 @@ async function submitCreate(): Promise<void> {
       <template v-else>
         <div class="integrations-page__header">
           <a-typography-title class="integrations-page__title" :level="3">Интеграции</a-typography-title>
-          <a-button type="primary" @click="openCreateModal">Создать интеграцию</a-button>
+          <div class="integrations-page__actions">
+            <a-button :loading="isSummaryFetching" @click="refreshSummary">
+              <template #icon>
+                <ReloadOutlined />
+              </template>
+              Обновить
+            </a-button>
+            <a-button type="primary" @click="openCreateModal">Создать интеграцию</a-button>
+          </div>
         </div>
+
+        <ProjectSummaryPanel :integrations="integrations" :project-id="projectId" :reset-key="summaryResetKey" />
 
         <a-alert v-if="isError" message="Не удалось загрузить интеграции" show-icon type="error">
           <template #action>
@@ -148,21 +163,6 @@ async function submitCreate(): Promise<void> {
             </a-button>
           </template>
         </a-alert>
-
-        <a-empty v-else-if="integrations.length === 0" description="Интеграций пока нет" />
-
-        <a-list v-else :data-source="integrations">
-          <template #renderItem="{ item }">
-            <a-list-item class="integrations-page__item" @click="openIntegration(item.id)">
-              <a-list-item-meta :title="item.name">
-                <template #description>
-                  <a-typography-text code>{{ item.slug }}</a-typography-text>
-                  <span v-if="item.description"> · {{ item.description }}</span>
-                </template>
-              </a-list-item-meta>
-            </a-list-item>
-          </template>
-        </a-list>
       </template>
     </a-layout-content>
 
@@ -214,18 +214,22 @@ async function submitCreate(): Promise<void> {
 }
 
 .integrations-page__header {
-  display: flex;
   align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
   justify-content: space-between;
   margin-bottom: 16px;
 }
 
-.integrations-page__title {
-  margin: 0;
+.integrations-page__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
 }
 
-.integrations-page__item {
-  cursor: pointer;
+.integrations-page__title {
+  margin: 0;
 }
 
 .integrations-page__label-icon {
