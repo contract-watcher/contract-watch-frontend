@@ -2,9 +2,9 @@
 import type { TableColumnsType } from "ant-design-vue";
 import type { Dayjs } from "dayjs";
 
-import { ArrowLeftOutlined, CloseCircleOutlined, DownOutlined, ReloadOutlined } from "@ant-design/icons-vue";
+import { ArrowLeftOutlined, CloseCircleOutlined, ReloadOutlined } from "@ant-design/icons-vue";
 import { useInfiniteQuery, useQuery } from "@tanstack/vue-query";
-import { message } from "ant-design-vue";
+import { message, theme } from "ant-design-vue";
 import dayjs from "dayjs";
 import { computed, onBeforeUnmount, ref, watch } from "vue";
 
@@ -19,6 +19,7 @@ import { useAuthStore } from "@/stores/auth";
 const props = defineProps<{ integrationId: string }>();
 
 const authStore = useAuthStore();
+const { token } = theme.useToken();
 const integrationId = computed(() => props.integrationId);
 
 const CONTRACT_PAGE_SIZE = 20;
@@ -35,7 +36,7 @@ const columns: TableColumnsType<ReportListItem> = [
 
 const detailColumns: TableColumnsType<ReportViolation> = [
   { dataIndex: "fieldName", key: "fieldName", title: "Поле" },
-  { dataIndex: "type", key: "type", title: "Нарушение" },
+  { key: "type", title: "Нарушение" },
   { key: "expectedType", title: "Ожидаемый тип" },
   { key: "actualType", title: "Фактический тип" },
 ];
@@ -249,6 +250,10 @@ function closeReport(): void {
   selectedReportId.value = null;
 }
 
+function violationRowKey(_record: ReportViolation, index?: number): number {
+  return index ?? 0;
+}
+
 function contractTagsPlaceholder(omitted: unknown[]): string {
   return `+${omitted.length}`;
 }
@@ -373,121 +378,113 @@ function openReport(record: ReportListItem): void {
 function rowProps(record: ReportListItem): { onClick: () => void } {
   return { onClick: () => openReport(record) };
 }
-
-function violationRowKey(_record: ReportViolation, index?: number): number {
-  return index ?? 0;
-}
 </script>
 
 <template>
-  <a-card v-if="!selectedReportId" title="История проверок">
-    <div class="integration-reports-panel__filters">
-      <div class="integration-reports-panel__contracts-wrap">
-        <div class="integration-reports-panel__contracts-row">
-          <a-select
-            v-model:value="contractDraftIds"
-            :class="{ 'integration-reports-panel__contracts--open': contractSelectOpen }"
-            class="integration-reports-panel__contracts"
-            :auto-clear-search-value="false"
-            :filter-option="false"
-            :list-item-height="44"
-            :loading="isContractSearchFetching"
-            :max-tag-count="contractSelectOpen ? 0 : 1"
-            :max-tag-placeholder="contractSelectOpen ? emptyContractSelectionLabel : contractTagsPlaceholder"
-            :max-tag-text-length="18"
-            :not-found-content="contractNotFoundContent"
-            :options="contractOptions"
-            mode="multiple"
-            placeholder="Контракты"
-            placement="bottomLeft"
-            popup-class-name="integration-reports-panel__contracts-dropdown"
-            :search-value="contractSearch"
-            show-arrow
-            show-search
-            :dropdown-align="{ overflow: { adjustY: false } }"
-            @blur="onContractBlur"
-            @change="onContractsChange"
-            @dropdown-visible-change="onContractDropdownVisibleChange"
-            @popup-scroll="onContractPopupScroll"
-            @search="onContractSearch"
-          >
-            <template #suffixIcon>
-              <DownOutlined />
-            </template>
-            <template #option="{ label, slug, value }">
-              <a-checkbox
-                class="integration-reports-panel__contract-checkbox"
-                :checked="contractDraftIds.includes(String(value))"
-                :disabled="contractLimitReached && !contractDraftIds.includes(String(value))"
-              >
-                <span class="integration-reports-panel__contract-option">
-                  <span class="integration-reports-panel__contract-name">{{ label }}</span>
-                  <a-typography-text class="integration-reports-panel__contract-slug" type="secondary">
-                    {{ slug }}
-                  </a-typography-text>
-                </span>
-              </a-checkbox>
-            </template>
-          </a-select>
-          <a-tooltip title="Очистить выбранные контракты">
-            <a-button
-              aria-label="Очистить выбранные контракты"
-              class="integration-reports-panel__contracts-clear"
-              :disabled="contractDraftIds.length === 0"
-              @mousedown="preventFocus"
-              @click="clearSelectedContracts"
-            >
-              <template #icon>
-                <CloseCircleOutlined />
-              </template>
-            </a-button>
-          </a-tooltip>
-        </div>
-        <a-typography-text v-if="contractLimitReached" class="integration-reports-panel__filter-hint" type="secondary">
-          Можно выбрать не больше 50 контрактов
-        </a-typography-text>
-        <a-typography-text v-if="contractFilterError" class="integration-reports-panel__filter-error" type="danger">
-          {{ contractFilterError }}
-        </a-typography-text>
-      </div>
-      <a-select
-        v-model:value="statusFilter"
-        allow-clear
-        placeholder="Результат"
-        :options="statusOptions"
-        style="width: 140px"
-      />
-      <a-range-picker
-        v-model:value="rangeValue"
-        class="integration-reports-panel__desktop-range"
-        format="DD.MM.YYYY"
-        :presets="rangePresets"
-      />
-      <div class="integration-reports-panel__mobile-dates">
-        <a-date-picker
-          v-model:value="fromFilter"
-          class="integration-reports-panel__mobile-date"
-          format="DD.MM.YYYY"
-          placeholder="Начальная дата"
-        />
-        <a-date-picker
-          v-model:value="toFilter"
-          class="integration-reports-panel__mobile-date"
-          format="DD.MM.YYYY"
-          placeholder="Конечная дата"
-        />
-      </div>
-      <a-typography-text v-if="periodFilterError" class="integration-reports-panel__filter-error" type="danger">
-        {{ periodFilterError }}
-      </a-typography-text>
-      <a-button :loading="isFetching" @click="refetch()">
-        <template #icon>
-          <ReloadOutlined />
-        </template>
-        Обновить
-      </a-button>
-    </div>
+  <div v-if="!selectedReportId" class="integration-reports-panel__actions">
+    <a-button :loading="isFetching" @click="refetch()">
+      <template #icon>
+        <ReloadOutlined />
+      </template>
+      Обновить
+    </a-button>
+  </div>
 
+  <div
+    v-if="!selectedReportId"
+    class="integration-reports-panel__filters"
+    :style="{ backgroundColor: token.colorBgContainer, borderColor: token.colorBorderSecondary }"
+  >
+    <div class="integration-reports-panel__contracts-wrap">
+      <div class="integration-reports-panel__contracts-row">
+        <a-select
+          v-model:value="contractDraftIds"
+          :class="{ 'integration-reports-panel__contracts--open': contractSelectOpen }"
+          class="integration-reports-panel__contracts"
+          :auto-clear-search-value="false"
+          :filter-option="false"
+          :list-item-height="44"
+          :loading="isContractSearchFetching"
+          :max-tag-count="contractSelectOpen ? 0 : 1"
+          :max-tag-placeholder="contractSelectOpen ? emptyContractSelectionLabel : contractTagsPlaceholder"
+          :max-tag-text-length="18"
+          :not-found-content="contractNotFoundContent"
+          :options="contractOptions"
+          mode="multiple"
+          placeholder="Контракты"
+          placement="bottomLeft"
+          :search-value="contractSearch"
+          show-arrow
+          show-search
+          @blur="onContractBlur"
+          @change="onContractsChange"
+          @dropdown-visible-change="onContractDropdownVisibleChange"
+          @popup-scroll="onContractPopupScroll"
+          @search="onContractSearch"
+        >
+          <template #option="{ label, slug }">
+            <span class="integration-reports-panel__contract-option">
+              <span class="integration-reports-panel__contract-name">{{ label }}</span>
+              <a-typography-text class="integration-reports-panel__contract-slug" type="secondary">
+                {{ slug }}
+              </a-typography-text>
+            </span>
+          </template>
+        </a-select>
+        <a-tooltip title="Очистить выбранные контракты">
+          <a-button
+            aria-label="Очистить выбранные контракты"
+            class="integration-reports-panel__contracts-clear"
+            :disabled="contractDraftIds.length === 0"
+            @mousedown="preventFocus"
+            @click="clearSelectedContracts"
+          >
+            <template #icon>
+              <CloseCircleOutlined />
+            </template>
+          </a-button>
+        </a-tooltip>
+      </div>
+      <a-typography-text v-if="contractLimitReached" class="integration-reports-panel__filter-hint" type="secondary">
+        Можно выбрать не больше 50 контрактов
+      </a-typography-text>
+      <a-typography-text v-if="contractFilterError" class="integration-reports-panel__filter-error" type="danger">
+        {{ contractFilterError }}
+      </a-typography-text>
+    </div>
+    <a-select
+      v-model:value="statusFilter"
+      allow-clear
+      placeholder="Результат"
+      :options="statusOptions"
+      style="width: 140px"
+    />
+    <a-range-picker
+      v-model:value="rangeValue"
+      class="integration-reports-panel__desktop-range"
+      format="DD.MM.YYYY"
+      :presets="rangePresets"
+    />
+    <div class="integration-reports-panel__mobile-dates">
+      <a-date-picker
+        v-model:value="fromFilter"
+        class="integration-reports-panel__mobile-date"
+        format="DD.MM.YYYY"
+        placeholder="Начальная дата"
+      />
+      <a-date-picker
+        v-model:value="toFilter"
+        class="integration-reports-panel__mobile-date"
+        format="DD.MM.YYYY"
+        placeholder="Конечная дата"
+      />
+    </div>
+    <a-typography-text v-if="periodFilterError" class="integration-reports-panel__filter-error" type="danger">
+      {{ periodFilterError }}
+    </a-typography-text>
+  </div>
+
+  <a-card v-if="!selectedReportId">
     <a-alert
       v-if="isError"
       :description="listErrorMessage"
@@ -575,29 +572,50 @@ function violationRowKey(_record: ReportViolation, index?: number): number {
       <a-skeleton v-else-if="isDetailsPending" active :paragraph="{ rows: 4 }" />
 
       <template v-else-if="details">
-        <a-descriptions :column="2" size="small">
-          <a-descriptions-item label="Время">{{ formatDateTime(details.receivedAt) }}</a-descriptions-item>
-          <a-descriptions-item label="Результат">
+        <div class="integration-reports-panel__details-head">
+          <div class="integration-reports-panel__details-head-main">
+            <a-typography-title class="integration-reports-panel__details-title" :level="4">
+              {{ details.contractName ?? details.contractSlug ?? "Контракт удалён" }}
+            </a-typography-title>
             <a-tag :color="details.status === 'Passed' ? 'success' : 'error'">{{ details.status }}</a-tag>
-          </a-descriptions-item>
-          <a-descriptions-item label="Контракт">
-            {{ details.contractSlug ?? details.contractName ?? "Контракт удалён" }}
-          </a-descriptions-item>
-          <a-descriptions-item label="Версия контракта">{{ details.contractVersion }}</a-descriptions-item>
-          <a-descriptions-item label="Нарушений">{{ details.violationCount }}</a-descriptions-item>
-        </a-descriptions>
+          </div>
+          <span class="integration-reports-panel__version" :style="{ color: token.colorText }">
+            v{{ details.contractVersion }}
+          </span>
+        </div>
+
+        <a-row class="integration-reports-panel__details-stats" :gutter="16">
+          <a-col :sm="8" :xs="24">
+            <a-statistic title="Нарушений" :value="details.violationCount" />
+          </a-col>
+          <a-col :sm="16" :xs="24">
+            <a-statistic
+              class="integration-reports-panel__details-date"
+              title="Время проверки"
+              :value="formatDateTime(details.receivedAt)"
+            />
+          </a-col>
+        </a-row>
 
         <a-divider />
 
         <a-table
           v-if="details.violations.length > 0"
+          class="integration-reports-panel__violations-table"
           :columns="detailColumns"
           :data-source="details.violations"
           :pagination="false"
           :row-key="violationRowKey"
+          :scroll="{ x: 680 }"
         >
           <template #bodyCell="{ column, record }">
-            <template v-if="column.key === 'expectedType'">
+            <template v-if="column.key === 'fieldName'">
+              <a-typography-text code>{{ record.fieldName }}</a-typography-text>
+            </template>
+            <template v-else-if="column.key === 'type'">
+              {{ record.type }}
+            </template>
+            <template v-else-if="column.key === 'expectedType'">
               {{ record.expectedType ?? "—" }}
             </template>
             <template v-else-if="column.key === 'actualType'">
@@ -612,16 +630,23 @@ function violationRowKey(_record: ReportViolation, index?: number): number {
 </template>
 
 <style scoped>
-:global(.integration-reports-panel__contracts-dropdown .ant-select-item-option-state) {
-  display: none;
+.integration-reports-panel__actions {
+  align-items: center;
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: 8px;
+  padding: 0;
 }
 
 .integration-reports-panel__filters {
-  align-items: flex-start;
+  align-items: flex-end;
+  border: 1px solid;
+  border-radius: 12px;
   display: flex;
   flex-wrap: wrap;
   gap: 12px;
   margin-bottom: 16px;
+  padding: 12px;
 }
 
 .integration-reports-panel__contracts-wrap {
@@ -660,17 +685,11 @@ function violationRowKey(_record: ReportViolation, index?: number): number {
   overflow: hidden;
 }
 
-.integration-reports-panel__contract-checkbox {
-  pointer-events: none;
-}
-
 .integration-reports-panel__contract-option {
   display: inline-flex;
   flex-direction: column;
-  line-height: 1.25;
-  max-width: 190px;
+  line-height: 1.2;
   min-width: 0;
-  vertical-align: middle;
 }
 
 .integration-reports-panel__contract-name,
@@ -682,7 +701,6 @@ function violationRowKey(_record: ReportViolation, index?: number): number {
 
 .integration-reports-panel__contract-slug {
   font-size: 12px;
-  line-height: 1.2;
 }
 
 .integration-reports-panel__filter-hint,
@@ -733,5 +751,41 @@ function violationRowKey(_record: ReportViolation, index?: number): number {
 .integration-reports-panel__back {
   margin-bottom: 8px;
   padding-inline: 0;
+}
+
+.integration-reports-panel__details-head {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: space-between;
+  margin-bottom: 16px;
+}
+
+.integration-reports-panel__details-head-main {
+  align-items: center;
+  display: flex;
+  gap: 12px;
+}
+
+.integration-reports-panel__details-title {
+  margin: 0;
+}
+
+.integration-reports-panel__version {
+  font-size: 18px;
+  font-weight: 600;
+}
+
+.integration-reports-panel__details-stats {
+  margin-bottom: 8px;
+}
+
+.integration-reports-panel__details-stats .ant-col {
+  margin-bottom: 8px;
+}
+
+.integration-reports-panel__details-date :deep(.ant-statistic-content) {
+  font-size: 16px;
 }
 </style>
