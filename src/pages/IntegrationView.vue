@@ -29,6 +29,57 @@ const queryClient = useQueryClient();
 const integrationId = computed(() => String(route.params.integrationId ?? ""));
 const projectId = computed(() => String(route.params.projectId ?? ""));
 
+const validTabs = new Set(["contracts", "groups", "history", "key", "settings", "summary"]);
+const activeTab = computed(() => {
+  const tab = String(route.query.tab ?? (route.query.contract ? "contracts" : "summary"));
+  return validTabs.has(tab) ? tab : "summary";
+});
+const contractId = computed(() =>
+  typeof route.query.contract === "string" && route.query.contract ? route.query.contract : undefined,
+);
+const contractVersion = computed(() => {
+  if (typeof route.query.version !== "string") {
+    return;
+  }
+
+  const version = Number(route.query.version);
+  return Number.isSafeInteger(version) && version > 0 ? version : undefined;
+});
+
+function updateContractQuery(nextContractId?: string, nextVersion?: number): void {
+  const baseQuery = Object.fromEntries(
+    Object.entries(route.query).filter(([key]) => !["contract", "tab", "version"].includes(key)),
+  );
+  const query = {
+    ...baseQuery,
+    tab: "contracts",
+    ...(nextContractId && { contract: nextContractId }),
+    ...(nextVersion && { version: String(nextVersion) }),
+  };
+
+  void router.push({ query });
+}
+
+function onContractChange(nextContractId?: string): void {
+  updateContractQuery(nextContractId);
+}
+
+function onVersionChange(nextVersion?: number): void {
+  updateContractQuery(contractId.value, nextVersion);
+}
+
+function onTabChange(tab: number | string): void {
+  const key = String(tab);
+  const baseQuery = Object.fromEntries(Object.entries(route.query).filter(([queryKey]) => queryKey !== "tab"));
+  const hasContractState = Boolean(route.query.contract || route.query.version);
+  const query = {
+    ...baseQuery,
+    ...((key !== "summary" || hasContractState) && { tab: key }),
+  };
+
+  void router.push({ query });
+}
+
 const form = reactive({ description: "", name: "", slug: "" });
 const rules: Record<string, Rule[]> = {
   description: [{ max: 1000, message: "Не больше 1000 символов", trigger: "blur" }],
@@ -173,7 +224,7 @@ function submitSave(): void {
         </template>
       </a-alert>
 
-      <a-tabs v-else-if="integration">
+      <a-tabs v-else-if="integration" :active-key="activeTab" @change="onTabChange">
         <a-tab-pane key="summary" tab="Сводка">
           <IntegrationSummaryPanel :integration-id="integrationId" />
         </a-tab-pane>
@@ -186,12 +237,24 @@ function submitSave(): void {
         <a-tab-pane key="key" tab="Ключи SDK">
           <IntegrationKeysPanel :integration-id="integrationId" />
         </a-tab-pane>
-        <a-tab-pane key="rules" tab="Правила">
-          <IntegrationContractsPanel :integration-id="integrationId" />
+        <a-tab-pane key="contracts" tab="Контракты">
+          <IntegrationContractsPanel
+            :contract-id="contractId"
+            :integration-id="integrationId"
+            :version="contractVersion"
+            @update:contract-id="onContractChange"
+            @update:version="onVersionChange"
+          />
         </a-tab-pane>
         <a-tab-pane key="settings" tab="Настройки">
           <a-card>
-            <a-form :model="form" :rules="rules" layout="vertical" @finish="submitSave">
+            <a-form
+              class="integration-view__settings-form"
+              :model="form"
+              :rules="rules"
+              layout="vertical"
+              @finish="submitSave"
+            >
               <a-form-item label="Название" name="name">
                 <a-input v-model:value="form.name" placeholder="Например, «ЮKassa»" />
               </a-form-item>
@@ -206,25 +269,28 @@ function submitSave(): void {
                 </template>
                 <a-input v-model:value="form.slug" placeholder="yookassa" />
               </a-form-item>
-              <a-form-item label="Описание" name="description">
-                <a-textarea v-model:value="form.description" :rows="4" placeholder="Необязательно" />
+              <a-form-item class="integration-view__description-item" label="Описание" name="description">
+                <a-textarea
+                  v-model:value="form.description"
+                  :maxlength="1000"
+                  :rows="4"
+                  placeholder="Необязательно"
+                  show-count
+                />
               </a-form-item>
-              <a-form-item>
+              <a-form-item class="integration-view__save-item">
                 <a-button :loading="isUpdating" html-type="submit" type="primary">Сохранить</a-button>
               </a-form-item>
             </a-form>
-
-            <a-divider />
-            <IntegrationNotificationsPanel :integration-id="integrationId" />
-            <a-divider />
-
-            <a-typography-title class="integration-page__section" :level="4">Удаление</a-typography-title>
-            <a-typography-paragraph type="secondary">
-              Интеграция «{{ integration.name }}» будет удалена вместе со всеми ключами и контрактами. Действие
-              необратимо.
-            </a-typography-paragraph>
-            <a-button :loading="isDeleting" danger @click="confirmDelete">Удалить интеграцию</a-button>
           </a-card>
+
+          <a-card class="integration-view__notifications-card">
+            <IntegrationNotificationsPanel :integration-id="integrationId" />
+          </a-card>
+
+          <div class="integration-view__delete-action">
+            <a-button :loading="isDeleting" danger @click="confirmDelete">Удалить интеграцию</a-button>
+          </div>
         </a-tab-pane>
       </a-tabs>
     </a-layout-content>
@@ -234,6 +300,30 @@ function submitSave(): void {
 <style scoped>
 .integration-page {
   min-height: 100vh;
+}
+
+.integration-view__settings-form :deep(.ant-form-item-label > label) {
+  font-weight: 600;
+}
+
+.integration-view__description-item {
+  margin-bottom: 0;
+}
+
+.integration-view__save-item {
+  margin-bottom: 0;
+}
+
+.integration-view__notifications-card {
+  margin-top: 16px;
+}
+
+.integration-view__notifications-card :deep(.integration-notifications-panel) {
+  margin-top: 0;
+}
+
+.integration-view__delete-action {
+  margin-top: 16px;
 }
 
 .integration-page__content {
