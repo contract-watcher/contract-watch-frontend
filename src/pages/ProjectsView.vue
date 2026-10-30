@@ -1,9 +1,9 @@
 <script setup lang="ts">
 import type { FormInstance, Rule } from "ant-design-vue/es/form";
 
-import { ReloadOutlined } from "@ant-design/icons-vue";
+import { ArrowRightOutlined, ReloadOutlined } from "@ant-design/icons-vue";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/vue-query";
-import { message } from "ant-design-vue";
+import { message, theme } from "ant-design-vue";
 import { computed, reactive, ref } from "vue";
 import { useRouter } from "vue-router";
 
@@ -15,6 +15,7 @@ import { useAuthStore } from "@/stores/auth";
 const authStore = useAuthStore();
 const router = useRouter();
 const queryClient = useQueryClient();
+const { token } = theme.useToken();
 
 const formRef = ref<FormInstance>();
 const form = reactive({ name: "" });
@@ -104,13 +105,29 @@ async function submitCreate(): Promise<void> {
 
       <a-empty v-else-if="projects.length === 0" description="Проектов нет" />
 
-      <a-list v-else :data-source="projects">
-        <template #renderItem="{ item }">
-          <a-list-item class="projects-page__item" @click="openProject(item.id)">
-            <a-list-item-meta :description="`Создан: ${formatDate(item.createdAt)}`" :title="item.name" />
-          </a-list-item>
-        </template>
-      </a-list>
+      <div v-else class="projects-page__grid">
+        <a-card
+          v-for="project in projects"
+          :key="project.id"
+          :aria-label="`Открыть проект ${project.name}`"
+          class="projects-page__card"
+          hoverable
+          role="button"
+          tabindex="0"
+          @click="openProject(project.id)"
+          @keydown.enter="openProject(project.id)"
+          @keydown.space.prevent="openProject(project.id)"
+        >
+          <a-typography-title class="projects-page__card-title" :level="5">
+            {{ project.name }}
+          </a-typography-title>
+          <a-typography-text type="secondary">Создан: {{ formatDate(project.createdAt) }}</a-typography-text>
+
+          <div class="projects-page__card-footer">
+            <ArrowRightOutlined class="projects-page__card-arrow" :style="{ color: token.colorPrimary }" />
+          </div>
+        </a-card>
+      </div>
     </a-layout-content>
 
     <a-modal
@@ -153,7 +170,34 @@ async function submitCreate(): Promise<void> {
   margin: 0;
 }
 
-.projects-page__item {
+.projects-page__grid {
+  display: grid;
+  gap: 16px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.projects-page__card {
+  border-radius: 12px;
   cursor: pointer;
+}
+
+.projects-page__card-footer {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 16px;
+}
+
+.projects-page__card-arrow {
+  font-size: 16px;
+}
+
+.projects-page__card-title {
+  margin: 0 0 4px;
+}
+
+@media (max-width: 767px) {
+  .projects-page__grid {
+    grid-template-columns: 1fr;
+  }
 }
 </style>
