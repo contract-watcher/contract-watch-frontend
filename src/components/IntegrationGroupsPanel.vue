@@ -3,6 +3,7 @@ import type { TableColumnsType } from "ant-design-vue";
 
 import { ArrowLeftOutlined, ReloadOutlined } from "@ant-design/icons-vue";
 import { useQuery } from "@tanstack/vue-query";
+import { theme } from "ant-design-vue";
 import { computed, ref } from "vue";
 
 import type { ViolationGroup } from "@/api/violation-groups";
@@ -14,19 +15,18 @@ import { useAuthStore } from "@/stores/auth";
 const props = defineProps<{ integrationId: string }>();
 
 const authStore = useAuthStore();
+const { token } = theme.useToken();
 const integrationId = computed(() => props.integrationId);
 
 const pageSize = 20;
-
-const descriptionsColumn = { lg: 2, md: 2, sm: 1, xl: 2, xs: 1, xxl: 2 };
 
 const columns: TableColumnsType<ViolationGroup> = [
   { dataIndex: "fieldName", key: "fieldName", title: "Поле" },
   { dataIndex: "type", key: "type", title: "Нарушение" },
   { key: "contract", title: "Код контракта" },
+  { key: "lastSeenAt", title: "Последнее появление" },
   { dataIndex: "contractVersion", key: "contractVersion", title: "Версия контракта" },
   { dataIndex: "occurrenceCount", key: "occurrenceCount", title: "Повторов" },
-  { key: "lastSeenAt", title: "Последнее появление" },
 ];
 
 const page = ref(1);
@@ -103,16 +103,16 @@ function rowProps(record: ViolationGroup): { onClick: () => void } {
 </script>
 
 <template>
-  <a-card v-if="!selectedGroupId" title="Группы нарушений">
-    <template #extra>
-      <a-button :loading="isFetching" @click="refetch()">
-        <template #icon>
-          <ReloadOutlined />
-        </template>
-        Обновить
-      </a-button>
-    </template>
+  <div v-if="!selectedGroupId" class="integration-groups-panel__actions">
+    <a-button :loading="isFetching" @click="refetch()">
+      <template #icon>
+        <ReloadOutlined />
+      </template>
+      Обновить
+    </a-button>
+  </div>
 
+  <a-card v-if="!selectedGroupId">
     <a-alert
       v-if="isError"
       :description="listErrorMessage"
@@ -200,11 +200,14 @@ function rowProps(record: ViolationGroup): { onClick: () => void } {
             <a-typography-title class="integration-groups-panel__field" :level="4">
               {{ details.fieldName }}
             </a-typography-title>
-            <a-tag color="error">{{ details.type }}</a-tag>
+            <a-tag>{{ details.type }}</a-tag>
           </div>
-          <a-typography-text type="secondary">
-            {{ details.contractSlug ?? "—" }} · v{{ details.contractVersion }}
-          </a-typography-text>
+          <div class="integration-groups-panel__meta">
+            <a-typography-text code>{{ details.contractSlug ?? "—" }}</a-typography-text>
+            <span class="integration-groups-panel__version" :style="{ color: token.colorText }">
+              v{{ details.contractVersion }}
+            </span>
+          </div>
         </div>
 
         <a-row class="integration-groups-panel__stats" :gutter="16">
@@ -229,20 +232,32 @@ function rowProps(record: ViolationGroup): { onClick: () => void } {
 
         <a-divider />
 
-        <a-descriptions bordered :column="descriptionsColumn" size="small">
-          <a-descriptions-item label="Ожидалось">
-            <a-typography-text code>{{ details.expectedType ?? "—" }}</a-typography-text>
-          </a-descriptions-item>
-          <a-descriptions-item label="Пришло">
-            <a-typography-text code>{{ details.actualType ?? "—" }}</a-typography-text>
-          </a-descriptions-item>
-        </a-descriptions>
+        <a-row :gutter="[12, 12]">
+          <a-col :sm="12" :xs="24">
+            <div class="integration-groups-panel__type-card" :style="{ backgroundColor: token.colorFillQuaternary }">
+              <a-typography-text type="secondary">Ожидалось</a-typography-text>
+              <span class="integration-groups-panel__type-value">{{ details.expectedType ?? "—" }}</span>
+            </div>
+          </a-col>
+          <a-col :sm="12" :xs="24">
+            <div class="integration-groups-panel__type-card" :style="{ backgroundColor: token.colorFillQuaternary }">
+              <a-typography-text type="secondary">Пришло</a-typography-text>
+              <span class="integration-groups-panel__type-value">{{ details.actualType ?? "—" }}</span>
+            </div>
+          </a-col>
+        </a-row>
       </template>
     </a-card>
   </template>
 </template>
 
 <style scoped>
+.integration-groups-panel__actions {
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: 8px;
+}
+
 .integration-groups-panel__table :deep(.ant-table-row) {
   cursor: pointer;
 }
@@ -273,6 +288,17 @@ function rowProps(record: ViolationGroup): { onClick: () => void } {
   gap: 12px;
 }
 
+.integration-groups-panel__meta {
+  align-items: center;
+  display: flex;
+  gap: 8px;
+}
+
+.integration-groups-panel__version {
+  font-size: 18px;
+  font-weight: 600;
+}
+
 .integration-groups-panel__field {
   margin: 0;
 }
@@ -287,5 +313,19 @@ function rowProps(record: ViolationGroup): { onClick: () => void } {
 
 .integration-groups-panel__stat-date :deep(.ant-statistic-content) {
   font-size: 16px;
+}
+
+.integration-groups-panel__type-card {
+  border-radius: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 12px 14px;
+}
+
+.integration-groups-panel__type-value {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+  font-size: 18px;
+  line-height: 1.2;
 }
 </style>

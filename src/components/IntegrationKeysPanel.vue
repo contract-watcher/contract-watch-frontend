@@ -173,14 +173,14 @@ async function submitCreate(): Promise<void> {
 </script>
 
 <template>
-  <a-card v-if="!sdkHowtoVisible" title="API-ключи">
-    <template #extra>
-      <a-space>
-        <a-button @click="openSdkHowto">Как подключить SDK?</a-button>
-        <a-button type="primary" @click="openCreateModal">Выпустить ключ</a-button>
-      </a-space>
-    </template>
+  <div v-if="!sdkHowtoVisible" class="integration-keys-panel__actions">
+    <a-space>
+      <a-button @click="openSdkHowto">Как подключить SDK?</a-button>
+      <a-button type="primary" @click="openCreateModal">Выпустить ключ</a-button>
+    </a-space>
+  </div>
 
+  <a-card v-if="!sdkHowtoVisible">
     <a-alert v-if="isError" message="Не удалось загрузить ключи" show-icon type="error">
       <template #action>
         <a-button size="small" type="text" @click="refetch()">
@@ -336,6 +336,12 @@ async function submitCreate(): Promise<void> {
 </template>
 
 <style scoped>
+.integration-keys-panel__actions {
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: 8px;
+}
+
 .integration-keys-panel__key-box {
   margin-top: 16px;
   border-style: solid;
