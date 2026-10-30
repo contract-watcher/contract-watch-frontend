@@ -139,111 +139,113 @@ function formatDateTime(value: string): string {
 </script>
 
 <template>
-  <a-card title="Сводка">
-    <template #extra>
-      <a-button :loading="isFetching" @click="refetch()">
-        <template #icon>
-          <ReloadOutlined />
-        </template>
-        Обновить
-      </a-button>
-    </template>
-
-    <div class="integration-summary-panel__frame" :style="{ borderColor: token.colorBorderSecondary }">
-      <div class="integration-summary-panel__period">
-        <a-range-picker
-          v-model:value="selectedRange"
-          class="integration-summary-panel__range-picker"
-          format="DD.MM.YYYY"
-          :placeholder="['Начальная дата', 'Конечная дата']"
-          :presets="rangePresets"
-        />
-      </div>
-
-      <a-typography-text v-if="periodFilterError" class="integration-summary-panel__period-error" type="danger">
-        {{ periodFilterError }}
-      </a-typography-text>
-
-      <a-alert v-if="isError" :description="errorMessage" message="Не удалось загрузить сводку" show-icon type="error">
-        <template #action>
-          <a-button v-if="!isValidationError" size="small" type="text" @click="refetch()">
-            <template #icon>
-              <ReloadOutlined />
-            </template>
-            Повторить
-          </a-button>
-        </template>
-      </a-alert>
-
-      <a-skeleton v-else-if="isPending" active :paragraph="{ rows: 4 }" />
-
-      <template v-else-if="summary">
-        <a-alert
-          v-if="isPeriodEmpty && !isFetching"
-          class="integration-summary-panel__period-empty"
-          message="За выбранный период проверок нет"
-          show-icon
-          type="info"
-        />
-
-        <a-row :gutter="[16, 16]">
-          <a-col :lg="8" :sm="8" :xs="24">
-            <a-statistic title="Всего проверок" :value="summary.totalReports" />
-          </a-col>
-          <a-col :lg="8" :sm="8" :xs="24">
-            <a-statistic title="Passed" :value="summary.passedReports" :value-style="{ color: token.colorSuccess }" />
-          </a-col>
-          <a-col :lg="8" :sm="8" :xs="24">
-            <a-statistic title="Failed" :value="summary.failedReports" :value-style="{ color: token.colorError }" />
-          </a-col>
-        </a-row>
-
-        <a-divider />
-
-        <div class="integration-summary-panel__last">
-          <a-typography-text type="secondary">
-            {{ hasPeriod ? "Последняя проверка за период:" : "Последняя проверка:" }}
-          </a-typography-text>
-          <a-typography-text>{{ lastCheckText }}</a-typography-text>
-        </div>
+  <div class="integration-summary-panel__actions">
+    <a-button :loading="isFetching" @click="refetch()">
+      <template #icon>
+        <ReloadOutlined />
       </template>
+      Обновить
+    </a-button>
+  </div>
+
+  <a-card class="integration-summary-panel__checks-card" title="Проверки">
+    <div class="integration-summary-panel__period">
+      <a-range-picker
+        v-model:value="selectedRange"
+        class="integration-summary-panel__range-picker"
+        format="DD.MM.YYYY"
+        :placeholder="['Начальная дата', 'Конечная дата']"
+        :presets="rangePresets"
+      />
     </div>
 
-    <template v-if="summary">
-      <a-typography-title class="integration-summary-panel__title" :level="5"> Последние группы </a-typography-title>
+    <a-typography-text v-if="periodFilterError" class="integration-summary-panel__period-error" type="danger">
+      {{ periodFilterError }}
+    </a-typography-text>
 
-      <a-table
-        :columns="columns"
-        :data-source="groups"
-        :pagination="false"
-        :scroll="{ x: 760 }"
-        row-key="groupId"
-        size="small"
-      >
-        <template #emptyText>
-          <a-empty description="Групп нарушений пока нет" />
-        </template>
-        <template #bodyCell="{ column, record }">
-          <template v-if="column.key === 'type'">
-            <a-tag>{{ record.type }}</a-tag>
+    <a-alert v-if="isError" :description="errorMessage" message="Не удалось загрузить сводку" show-icon type="error">
+      <template #action>
+        <a-button v-if="!isValidationError" size="small" type="text" @click="refetch()">
+          <template #icon>
+            <ReloadOutlined />
           </template>
-          <template v-else-if="column.key === 'contract'">
-            <a-typography-text code>{{ record.contractSlug ?? record.contractId }}</a-typography-text>
-          </template>
-          <template v-else-if="column.key === 'lastSeenAt'">
-            {{ formatDateTime(record.lastSeenAt) }}
-          </template>
-        </template>
-      </a-table>
+          Повторить
+        </a-button>
+      </template>
+    </a-alert>
+
+    <a-skeleton v-else-if="isPending" active :paragraph="{ rows: 4 }" />
+
+    <template v-else-if="summary">
+      <a-alert
+        v-if="isPeriodEmpty && !isFetching"
+        class="integration-summary-panel__period-empty"
+        message="За выбранный период проверок нет"
+        show-icon
+        type="info"
+      />
+
+      <a-row :gutter="[16, 16]">
+        <a-col :lg="8" :sm="8" :xs="24">
+          <a-statistic title="Всего проверок" :value="summary.totalReports" />
+        </a-col>
+        <a-col :lg="8" :sm="8" :xs="24">
+          <a-statistic title="Passed" :value="summary.passedReports" :value-style="{ color: token.colorSuccess }" />
+        </a-col>
+        <a-col :lg="8" :sm="8" :xs="24">
+          <a-statistic title="Failed" :value="summary.failedReports" :value-style="{ color: token.colorError }" />
+        </a-col>
+      </a-row>
+
+      <a-divider />
+
+      <div class="integration-summary-panel__last">
+        <a-typography-text type="secondary">
+          {{ hasPeriod ? "Последняя проверка за период:" : "Последняя проверка:" }}
+        </a-typography-text>
+        <a-typography-text>{{ lastCheckText }}</a-typography-text>
+      </div>
     </template>
+  </a-card>
+
+  <a-card v-if="summary" class="integration-summary-panel__groups-card" title="Последние группы">
+    <a-table
+      :columns="columns"
+      :data-source="groups"
+      :pagination="false"
+      :scroll="{ x: 760 }"
+      row-key="groupId"
+      size="small"
+    >
+      <template #emptyText>
+        <a-empty description="Групп нарушений пока нет" />
+      </template>
+      <template #bodyCell="{ column, record }">
+        <template v-if="column.key === 'type'">
+          <a-tag>{{ record.type }}</a-tag>
+        </template>
+        <template v-else-if="column.key === 'contract'">
+          <a-typography-text code>{{ record.contractSlug ?? record.contractId }}</a-typography-text>
+        </template>
+        <template v-else-if="column.key === 'lastSeenAt'">
+          {{ formatDateTime(record.lastSeenAt) }}
+        </template>
+      </template>
+    </a-table>
   </a-card>
 </template>
 
 <style scoped>
-.integration-summary-panel__frame {
-  border: 1px solid;
-  border-radius: 8px;
-  padding: 16px;
+.integration-summary-panel__actions {
+  align-items: center;
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: 8px;
+  padding: 0;
+}
+
+.integration-summary-panel__checks-card {
+  margin-bottom: 8px;
 }
 
 .integration-summary-panel__period {
@@ -272,11 +274,6 @@ function formatDateTime(value: string): string {
   display: flex;
   flex-wrap: wrap;
   gap: 4px;
-}
-
-.integration-summary-panel__title {
-  margin-bottom: 16px;
-  margin-top: 24px;
 }
 
 @media (max-width: 575px) {

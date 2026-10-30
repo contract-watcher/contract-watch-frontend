@@ -27,13 +27,17 @@ import {
 } from "@/api/contracts";
 import { useAuthStore } from "@/stores/auth";
 
-const props = defineProps<{ integrationId: string }>();
+const props = defineProps<{ contractId?: string; integrationId: string; version?: number }>();
+const emit = defineEmits<{
+  "update:contractId": [contractId?: string];
+  "update:version": [version?: number];
+}>();
 
 const authStore = useAuthStore();
 const queryClient = useQueryClient();
 
 const integrationId = computed(() => props.integrationId);
-const selectedContractId = ref<null | string>(null);
+const selectedContractId = ref<null | string>(props.contractId ?? null);
 
 const formRef = ref<FormInstance>();
 const form = reactive({ description: "", name: "", slug: "" });
@@ -62,7 +66,6 @@ const editorKeyCounter = ref(0);
 const editorSource = ref<"none" | number>("none");
 const rulesBaseline = ref<string>("[]");
 
-const viewOpen = ref(false);
 const viewedVersion = ref<ContractVersion | null>(null);
 
 const fieldTypeOptions: { label: string; value: ContractFieldType }[] = [
@@ -74,11 +77,10 @@ const fieldTypeOptions: { label: string; value: ContractFieldType }[] = [
 ];
 
 const contractColumns: TableColumnsType<Contract> = [
-  { dataIndex: "slug", key: "slug", title: "Код" },
   { dataIndex: "name", key: "name", title: "Название" },
-  { key: "latestVersion", title: "Последняя версия" },
+  { dataIndex: "slug", key: "slug", title: "Код" },
   { dataIndex: "createdAt", key: "createdAt", title: "Создан" },
-  { key: "actions", title: "" },
+  { key: "latestVersion", title: "Последняя версия" },
 ];
 
 const versionColumns: TableColumnsType<ContractVersion> = [
@@ -86,7 +88,6 @@ const versionColumns: TableColumnsType<ContractVersion> = [
   { key: "comment", title: "Комментарий" },
   { dataIndex: "createdAt", key: "createdAt", title: "Создан" },
   { key: "publish", title: "Публикация" },
-  { key: "actions", title: "" },
 ];
 
 const ruleColumns: TableColumnsType<ContractRule> = [
@@ -140,7 +141,32 @@ const sourceOptions = computed(() => [
 watch(integrationId, () => {
   editorOpen.value = false;
   selectedContractId.value = null;
+  viewedVersion.value = null;
 });
+
+watch(
+  () => props.contractId,
+  (contractId) => {
+    selectedContractId.value = contractId ?? null;
+    viewedVersion.value = null;
+  },
+);
+
+watch(
+  [versions, () => props.version],
+  ([items, version]) => {
+    if (!version) {
+      viewedVersion.value = null;
+      return;
+    }
+
+    const match = items.find((item) => item.version === version);
+    if (match) {
+      viewedVersion.value = match;
+    }
+  },
+  { immediate: true },
+);
 
 const { isPending: isCreatingContract, mutate: createContractMutation } = useMutation({
   mutationFn: (payload: ContractPayload) => createContract(integrationId.value, payload, authStore.accessToken),
@@ -148,6 +174,9 @@ const { isPending: isCreatingContract, mutate: createContractMutation } = useMut
     message.success("Контракт создан");
     createModalOpen.value = false;
     selectedContractId.value = created.id;
+    viewedVersion.value = null;
+    emit("update:contractId", created.id);
+    emit("update:version");
     await queryClient.invalidateQueries({ queryKey: ["contracts", integrationId.value] });
   },
   onError: (error) => {
@@ -209,6 +238,9 @@ function applySource(value: "none" | number): void {
 
 function backToContracts(): void {
   selectedContractId.value = null;
+  viewedVersion.value = null;
+  emit("update:contractId");
+  emit("update:version");
 }
 
 function closeEditor(): void {
@@ -292,6 +324,17 @@ function onSourceChange(value: SelectValue): void {
 
 function openContract(contractId: string): void {
   selectedContractId.value = contractId;
+  viewedVersion.value = null;
+  emit("update:contractId", contractId);
+  emit("update:version");
+}
+
+function contractRowProps(record: Contract): { onClick: () => void } {
+  return { onClick: () => openContract(record.id) };
+}
+
+function versionRowProps(record: ContractVersion): { onClick: () => void } {
+  return { onClick: () => openVersionView(record) };
 }
 
 function openCreateModal(): void {
@@ -309,9 +352,14 @@ function openEditorModal(): void {
   editorOpen.value = true;
 }
 
-function openViewModal(version: ContractVersion): void {
+function openVersionView(version: ContractVersion): void {
   viewedVersion.value = version;
-  viewOpen.value = true;
+  emit("update:version", version.version);
+}
+
+function closeVersionView(): void {
+  viewedVersion.value = null;
+  emit("update:version");
 }
 
 function removeRuleField(index: number): void {
@@ -373,11 +421,11 @@ function validateRules(): null | string {
 
 <template>
   <div class="integration-contracts-panel">
-    <a-card v-if="!selectedContract" title="Контракты">
-      <template #extra>
-        <a-button type="primary" @click="openCreateModal">Создать контракт</a-button>
-      </template>
+    <div v-if="!selectedContract" class="integration-contracts-panel__actions">
+      <a-button type="primary" @click="openCreateModal">Создать контракт</a-button>
+    </div>
 
+    <a-card v-if="!selectedContract">
       <a-alert v-if="isContractsError" message="Не удалось загрузить контракты" show-icon type="error">
         <template #action>
           <a-button size="small" type="text" @click="refetchContracts()">
@@ -391,7 +439,9 @@ function validateRules(): null | string {
 
       <a-table
         v-else
+        class="integration-contracts-panel__table"
         :columns="contractColumns"
+        :custom-row="contractRowProps"
         :data-source="contracts"
         :loading="isContractsPending"
         :pagination="false"
@@ -410,9 +460,6 @@ function validateRules(): null | string {
           </template>
           <template v-else-if="column.key === 'createdAt'">
             {{ formatDate(record.createdAt) }}
-          </template>
-          <template v-else-if="column.key === 'actions'">
-            <a-button size="small" type="text" @click="openContract(record.id)">Открыть</a-button>
           </template>
         </template>
       </a-table>
@@ -484,7 +531,76 @@ function validateRules(): null | string {
       </a-card>
     </template>
 
-    <template v-if="selectedContract && !editorOpen">
+    <template v-if="selectedContract && !editorOpen && viewedVersion">
+      <a-button class="integration-contracts-panel__back" type="text" @click="closeVersionView">
+        <template #icon>
+          <ArrowLeftOutlined />
+        </template>
+        К версиям
+      </a-button>
+
+      <a-card title="Детали версии">
+        <div class="integration-contracts-panel__version-head">
+          <div class="integration-contracts-panel__version-head-main">
+            <a-typography-title class="integration-contracts-panel__version-title" :level="4">
+              {{ selectedContract.name }}
+            </a-typography-title>
+            <a-tag v-if="viewedVersion.publishedAt" color="success">Опубликована</a-tag>
+            <a-tag v-else color="default">Не опубликована</a-tag>
+          </div>
+          <div class="integration-contracts-panel__version-meta">
+            <a-typography-text code>{{ selectedContract.slug }}</a-typography-text>
+            <span class="integration-contracts-panel__version-badge">v{{ viewedVersion.version }}</span>
+          </div>
+        </div>
+
+        <a-typography-text
+          v-if="viewedVersion.comment"
+          class="integration-contracts-panel__version-comment"
+          type="secondary"
+        >
+          {{ viewedVersion.comment }}
+        </a-typography-text>
+
+        <a-row class="integration-contracts-panel__version-stats" :gutter="16">
+          <a-col :sm="8" :xs="24">
+            <a-statistic title="Правил" :value="viewedVersion.rules.length" />
+          </a-col>
+          <a-col :sm="8" :xs="24">
+            <a-statistic
+              class="integration-contracts-panel__version-date"
+              title="Создана"
+              :value="formatDate(viewedVersion.createdAt)"
+            />
+          </a-col>
+          <a-col :sm="8" :xs="24">
+            <a-statistic
+              class="integration-contracts-panel__version-date"
+              title="Опубликована"
+              :value="viewedVersion.publishedAt ? formatDate(viewedVersion.publishedAt) : '—'"
+            />
+          </a-col>
+        </a-row>
+
+        <a-divider />
+
+        <a-table
+          :columns="ruleColumns"
+          :data-source="viewedVersion.rules"
+          :pagination="false"
+          :scroll="{ x: 420 }"
+          row-key="fieldName"
+          size="small"
+        >
+          <template #bodyCell="{ column, record }">
+            <template v-if="column.key === 'required'">{{ record.required ? "Да" : "Нет" }}</template>
+            <template v-else-if="column.key === 'nullable'">{{ record.nullable ? "Да" : "Нет" }}</template>
+          </template>
+        </a-table>
+      </a-card>
+    </template>
+
+    <template v-if="selectedContract && !editorOpen && !viewedVersion">
       <a-button class="integration-contracts-panel__back" type="text" @click="backToContracts">
         <template #icon>
           <ArrowLeftOutlined />
@@ -492,19 +608,17 @@ function validateRules(): null | string {
         Все контракты
       </a-button>
 
-      <a-card>
-        <template #title>
-          {{ selectedContract.name }}
+      <div class="integration-contracts-panel__contract-heading">
+        <div class="integration-contracts-panel__contract-heading-main">
+          <a-typography-title class="integration-contracts-panel__contract-title" :level="4">
+            {{ selectedContract.name }}
+          </a-typography-title>
           <a-typography-text code>{{ selectedContract.slug }}</a-typography-text>
-        </template>
-        <template #extra>
-          <a-button type="primary" @click="openEditorModal">Новая версия</a-button>
-        </template>
+        </div>
+        <a-button type="primary" @click="openEditorModal">Новая версия</a-button>
+      </div>
 
-        <a-typography-title class="integration-contracts-panel__history-title" :level="5">
-          История версий
-        </a-typography-title>
-
+      <a-card>
         <a-alert v-if="isVersionsError" message="Не удалось загрузить версии" show-icon type="error">
           <template #action>
             <a-button size="small" type="text" @click="refetchVersions()">
@@ -518,7 +632,9 @@ function validateRules(): null | string {
 
         <a-table
           v-else
+          class="integration-contracts-panel__versions-table"
           :columns="versionColumns"
+          :custom-row="versionRowProps"
           :data-source="versions"
           :loading="isVersionsPending"
           :pagination="false"
@@ -542,9 +658,6 @@ function validateRules(): null | string {
               <a-button v-else size="small" type="text" @click="confirmPublish(record as ContractVersion)">
                 Опубликовать
               </a-button>
-            </template>
-            <template v-else-if="column.key === 'actions'">
-              <a-button size="small" type="text" @click="openViewModal(record as ContractVersion)">Смотреть</a-button>
             </template>
           </template>
         </a-table>
@@ -571,51 +684,92 @@ function validateRules(): null | string {
         </a-form-item>
       </a-form>
     </a-modal>
-
-    <a-modal
-      :footer="null"
-      :open="viewOpen"
-      :title="`Версия ${viewedVersion?.version ?? ''}`"
-      :width="640"
-      @cancel="viewOpen = false"
-    >
-      <a-descriptions :column="1" size="small">
-        <a-descriptions-item label="Статус">
-          <a-tag v-if="viewedVersion?.publishedAt" color="success">Опубликована</a-tag>
-          <a-tag v-else color="default">Не опубликовано</a-tag>
-        </a-descriptions-item>
-        <a-descriptions-item v-if="viewedVersion" label="Создана">{{
-          formatDate(viewedVersion.createdAt)
-        }}</a-descriptions-item>
-        <a-descriptions-item label="Комментарий">{{ viewedVersion?.comment || "—" }}</a-descriptions-item>
-      </a-descriptions>
-
-      <a-table
-        :columns="ruleColumns"
-        :data-source="viewedVersion?.rules ?? []"
-        :pagination="false"
-        :scroll="{ x: 420 }"
-        row-key="fieldName"
-        size="small"
-      >
-        <template #bodyCell="{ column, record }">
-          <template v-if="column.key === 'required'">{{ record.required ? "Да" : "Нет" }}</template>
-          <template v-else-if="column.key === 'nullable'">{{ record.nullable ? "Да" : "Нет" }}</template>
-        </template>
-      </a-table>
-    </a-modal>
   </div>
 </template>
 
 <style scoped>
+.integration-contracts-panel__actions {
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: 8px;
+}
+
+.integration-contracts-panel__table :deep(.ant-table-row),
+.integration-contracts-panel__versions-table :deep(.ant-table-row) {
+  cursor: pointer;
+}
+
 .integration-contracts-panel__back {
   margin-bottom: 8px;
   padding-inline: 0;
 }
 
-.integration-contracts-panel__history-title {
+.integration-contracts-panel__contract-heading {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  justify-content: space-between;
   margin-bottom: 16px;
-  margin-top: 0;
+}
+
+.integration-contracts-panel__contract-heading-main {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.integration-contracts-panel__contract-title {
+  margin: 0;
+}
+
+.integration-contracts-panel__version-head {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+
+.integration-contracts-panel__version-head-main {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.integration-contracts-panel__version-title {
+  margin: 0;
+}
+
+.integration-contracts-panel__version-meta {
+  align-items: center;
+  display: flex;
+  gap: 8px;
+}
+
+.integration-contracts-panel__version-badge {
+  font-size: 18px;
+  font-weight: 600;
+}
+
+.integration-contracts-panel__version-comment {
+  display: block;
+  margin-bottom: 16px;
+}
+
+.integration-contracts-panel__version-stats {
+  margin-bottom: 8px;
+}
+
+.integration-contracts-panel__version-stats .ant-col {
+  margin-bottom: 8px;
+}
+
+.integration-contracts-panel__version-date :deep(.ant-statistic-content) {
+  font-size: 16px;
 }
 
 .integration-contracts-panel__source {

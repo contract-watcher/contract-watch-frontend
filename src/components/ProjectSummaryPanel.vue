@@ -1,7 +1,14 @@
 <script setup lang="ts">
 import type { Dayjs } from "dayjs";
 
-import { ArrowRightOutlined, ClockCircleOutlined, ReloadOutlined } from "@ant-design/icons-vue";
+import {
+  ArrowRightOutlined,
+  ClockCircleOutlined,
+  CloseCircleOutlined,
+  CloseOutlined,
+  InfoCircleOutlined,
+  ReloadOutlined,
+} from "@ant-design/icons-vue";
 import { keepPreviousData, useQuery } from "@tanstack/vue-query";
 import { theme } from "ant-design-vue";
 import dayjs from "dayjs";
@@ -9,7 +16,6 @@ import { computed, ref, watch } from "vue";
 import { useRouter } from "vue-router";
 
 import type { Integration } from "@/api/integrations";
-import type { ProjectSummaryItem } from "@/api/project-summary";
 
 import { ApiError } from "@/api/client";
 import { getProjectIntegrationSummaries } from "@/api/project-summary";
@@ -45,6 +51,9 @@ const rangePresets = [
 
 const selectedRange = ref<[Dayjs, Dayjs] | undefined>([dayjs().startOf("day"), dayjs().startOf("day")]);
 const selectedIntegrationIds = ref<string[]>([]);
+const integrationSearch = ref("");
+const integrationSelectOpen = ref(false);
+const flippedIntegrationId = ref<null | string>(null);
 const onlyFailed = ref(false);
 const page = ref(1);
 
@@ -72,6 +81,10 @@ const integrationOptions = computed(() =>
     label: integration.name,
     value: integration.id,
   })),
+);
+
+const integrationDescriptions = computed(
+  () => new Map(props.integrations.map((integration) => [integration.id, integration.description])),
 );
 
 const {
@@ -173,12 +186,41 @@ function formatDateTime(value: string): string {
   });
 }
 
-function passRate(record: ProjectSummaryItem): number {
-  return record.totalReports > 0 ? Math.round((record.passedReports / record.totalReports) * 100) : 0;
+function onIntegrationDropdownVisibleChange(isOpen: boolean): void {
+  integrationSelectOpen.value = isOpen;
+
+  if (!isOpen) {
+    integrationSearch.value = "";
+  }
 }
 
-function passRateColor(record: ProjectSummaryItem): string {
-  return record.failedReports > 0 ? token.value.colorError : token.value.colorSuccess;
+function onIntegrationSearch(value: string): void {
+  integrationSearch.value = value;
+}
+
+function integrationDescription(integrationId: string): string {
+  return integrationDescriptions.value.get(integrationId) || "Описание пока не добавлено";
+}
+
+function toggleCard(integrationId: string): void {
+  flippedIntegrationId.value = flippedIntegrationId.value === integrationId ? null : integrationId;
+}
+
+function onCardClick(integrationId: string): void {
+  if (flippedIntegrationId.value === integrationId) {
+    return;
+  }
+
+  openIntegration(integrationId);
+}
+
+function clearIntegrations(): void {
+  selectedIntegrationIds.value = [];
+}
+
+function preventFocus(event: MouseEvent): void {
+  event.preventDefault();
+  event.stopPropagation();
 }
 
 function openIntegration(integrationId: string): void {
@@ -193,7 +235,7 @@ function openIntegration(integrationId: string): void {
   <section class="project-summary-panel">
     <div
       class="project-summary-panel__filters"
-      :style="{ backgroundColor: token.colorFillQuaternary, borderColor: token.colorBorderSecondary }"
+      :style="{ backgroundColor: token.colorBgContainer, borderColor: token.colorBorderSecondary }"
     >
       <div class="project-summary-panel__field">
         <a-typography-text class="project-summary-panel__label" type="secondary">Период</a-typography-text>
@@ -207,17 +249,39 @@ function openIntegration(integrationId: string): void {
       </div>
       <div class="project-summary-panel__field">
         <a-typography-text class="project-summary-panel__label" type="secondary">Интеграции</a-typography-text>
-        <a-select
-          v-model:value="selectedIntegrationIds"
-          allow-clear
-          class="project-summary-panel__integrations"
-          :max-tag-count="1"
-          mode="multiple"
-          :not-found-content="'Интеграции не найдены'"
-          option-filter-prop="label"
-          :options="integrationOptions"
-          placeholder="Все интеграции"
-        />
+        <div class="project-summary-panel__integrations-row">
+          <a-select
+            v-model:value="selectedIntegrationIds"
+            :class="{
+              'project-summary-panel__integrations--open': integrationSelectOpen,
+            }"
+            :auto-clear-search-value="false"
+            class="project-summary-panel__integrations"
+            :max-tag-count="1"
+            mode="multiple"
+            :not-found-content="'Интеграции не найдены'"
+            option-filter-prop="label"
+            :options="integrationOptions"
+            placeholder="Все интеграции"
+            :search-value="integrationSearch"
+            show-search
+            @dropdown-visible-change="onIntegrationDropdownVisibleChange"
+            @search="onIntegrationSearch"
+          />
+          <a-tooltip title="Очистить выбранные интеграции">
+            <a-button
+              aria-label="Очистить выбранные интеграции"
+              class="project-summary-panel__integrations-clear"
+              :disabled="selectedIntegrationIds.length === 0"
+              @mousedown="preventFocus"
+              @click="clearIntegrations"
+            >
+              <template #icon>
+                <CloseCircleOutlined />
+              </template>
+            </a-button>
+          </a-tooltip>
+        </div>
       </div>
       <div class="project-summary-panel__field project-summary-panel__field--status">
         <a-typography-text class="project-summary-panel__label" type="secondary">Статус</a-typography-text>
@@ -251,67 +315,104 @@ function openIntegration(integrationId: string): void {
           <a-card
             v-for="record in rows"
             :key="record.integrationId"
-            :aria-label="`Открыть интеграцию ${record.name}`"
             class="project-summary-panel__card"
             hoverable
-            role="link"
-            tabindex="0"
-            @click="openIntegration(record.integrationId)"
-            @keydown.enter="openIntegration(record.integrationId)"
-            @keydown.space.prevent="openIntegration(record.integrationId)"
+            @click="onCardClick(record.integrationId)"
           >
-            <div class="project-summary-panel__card-head">
-              <div class="project-summary-panel__names">
-                <span class="project-summary-panel__card-title">{{ record.name }}</span>
-                <a-typography-text code type="secondary">{{ record.slug }}</a-typography-text>
-              </div>
-            </div>
+            <div
+              class="project-summary-panel__flipper"
+              :class="{
+                'project-summary-panel__flipper--flipped': flippedIntegrationId === record.integrationId,
+              }"
+            >
+              <div class="project-summary-panel__card-face">
+                <div class="project-summary-panel__card-head">
+                  <div class="project-summary-panel__names">
+                    <span class="project-summary-panel__card-title">{{ record.name }}</span>
+                    <a-typography-text code type="secondary">{{ record.slug }}</a-typography-text>
+                  </div>
+                  <a-tooltip title="Показать описание">
+                    <a-button
+                      aria-label="Показать описание"
+                      class="project-summary-panel__info-button"
+                      size="small"
+                      type="text"
+                      @click.stop="toggleCard(record.integrationId)"
+                    >
+                      <template #icon>
+                        <InfoCircleOutlined />
+                      </template>
+                    </a-button>
+                  </a-tooltip>
+                </div>
 
-            <div class="project-summary-panel__stats" :style="{ backgroundColor: token.colorFillQuaternary }">
-              <div class="project-summary-panel__stat">
-                <span>Всего</span>
-                <strong>{{ record.totalReports }}</strong>
-              </div>
-              <div class="project-summary-panel__stat">
-                <span>Passed</span>
-                <strong :style="{ color: record.passedReports > 0 ? token.colorSuccess : undefined }">
-                  {{ record.passedReports }}
-                </strong>
-              </div>
-              <div class="project-summary-panel__stat">
-                <span>Failed</span>
-                <strong :style="{ color: record.failedReports > 0 ? token.colorError : undefined }">
-                  {{ record.failedReports }}
-                </strong>
-              </div>
-            </div>
+                <div class="project-summary-panel__stats" :style="{ backgroundColor: token.colorFillQuaternary }">
+                  <div class="project-summary-panel__stat">
+                    <span>Всего</span>
+                    <strong>{{ record.totalReports }}</strong>
+                  </div>
+                  <div class="project-summary-panel__stat">
+                    <span>Passed</span>
+                    <strong :style="{ color: record.passedReports > 0 ? token.colorSuccess : undefined }">
+                      {{ record.passedReports }}
+                    </strong>
+                  </div>
+                  <div class="project-summary-panel__stat">
+                    <span>Failed</span>
+                    <strong :style="{ color: record.failedReports > 0 ? token.colorError : undefined }">
+                      {{ record.failedReports }}
+                    </strong>
+                  </div>
+                </div>
 
-            <div v-if="record.totalReports > 0" class="project-summary-panel__progress">
-              <a-progress
-                :percent="passRate(record)"
-                :show-info="false"
-                :stroke-color="passRateColor(record)"
-                size="small"
-              />
-              <a-typography-text type="secondary">{{ passRate(record) }}% успешных</a-typography-text>
-            </div>
-            <a-typography-text v-else class="project-summary-panel__no-data" type="secondary">
-              За период проверок нет
-            </a-typography-text>
+                <div class="project-summary-panel__card-footer">
+                  <span class="project-summary-panel__last-check">
+                    <ClockCircleOutlined />
+                    <a-typography-text v-if="record.lastReceivedAt" type="secondary">
+                      {{ formatDateTime(record.lastReceivedAt) }}
+                    </a-typography-text>
+                    <a-typography-text v-else type="secondary">—</a-typography-text>
+                  </span>
+                  <a-tooltip title="Открыть интеграцию">
+                    <a-button
+                      aria-label="Открыть интеграцию"
+                      class="project-summary-panel__open"
+                      size="small"
+                      type="text"
+                      :style="{ color: token.colorPrimary }"
+                      @click.stop="openIntegration(record.integrationId)"
+                    >
+                      <template #icon>
+                        <ArrowRightOutlined />
+                      </template>
+                    </a-button>
+                  </a-tooltip>
+                </div>
+              </div>
 
-            <div class="project-summary-panel__card-footer">
-              <span class="project-summary-panel__last-check">
-                <ClockCircleOutlined />
-                <a-typography-text v-if="record.lastReceivedAt" type="secondary">
-                  {{ formatDateTime(record.lastReceivedAt) }}
+              <div class="project-summary-panel__card-face project-summary-panel__card-face--back">
+                <div class="project-summary-panel__card-head">
+                  <div class="project-summary-panel__names">
+                    <span class="project-summary-panel__card-title">{{ record.name }}</span>
+                    <a-typography-text code type="secondary">{{ record.slug }}</a-typography-text>
+                  </div>
+                  <a-button
+                    aria-label="Скрыть описание"
+                    class="project-summary-panel__info-button"
+                    size="small"
+                    type="text"
+                    @click.stop="toggleCard(record.integrationId)"
+                  >
+                    <template #icon>
+                      <CloseOutlined />
+                    </template>
+                  </a-button>
+                </div>
+
+                <a-typography-text class="project-summary-panel__description" type="secondary">
+                  {{ integrationDescription(record.integrationId) }}
                 </a-typography-text>
-                <a-typography-text v-else type="secondary">—</a-typography-text>
-              </span>
-              <a-tooltip title="Открыть интеграцию">
-                <span class="project-summary-panel__open" :style="{ color: token.colorPrimary }">
-                  <ArrowRightOutlined />
-                </span>
-              </a-tooltip>
+              </div>
             </div>
           </a-card>
         </div>
@@ -367,8 +468,32 @@ function openIntegration(integrationId: string): void {
   width: 280px;
 }
 
-.project-summary-panel__integrations {
+.project-summary-panel__integrations-row {
+  align-items: center;
+  display: flex;
   width: 220px;
+}
+
+.project-summary-panel__integrations {
+  flex: 1;
+  min-width: 0;
+}
+
+.project-summary-panel__integrations :deep(.ant-select-selector) {
+  border-bottom-right-radius: 0;
+  border-top-right-radius: 0;
+}
+
+.project-summary-panel__integrations-clear {
+  border-bottom-left-radius: 0;
+  border-top-left-radius: 0;
+  flex: none;
+  margin-left: -1px;
+  padding-inline: 7px;
+}
+
+.project-summary-panel__integrations--open :deep(.ant-select-selection-item) {
+  display: none;
 }
 
 .project-summary-panel__filter-error {
@@ -386,6 +511,40 @@ function openIntegration(integrationId: string): void {
 .project-summary-panel__card {
   border-radius: 12px;
   cursor: pointer;
+}
+
+.project-summary-panel__flipper {
+  display: grid;
+}
+
+.project-summary-panel__card-face {
+  grid-area: 1 / 1;
+  min-width: 0;
+}
+
+.project-summary-panel__card-face--back {
+  display: none;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.project-summary-panel__flipper--flipped .project-summary-panel__card-face {
+  display: none;
+}
+
+.project-summary-panel__flipper--flipped .project-summary-panel__card-face--back {
+  display: flex;
+}
+
+.project-summary-panel__info-button {
+  flex: none;
+  padding-inline: 4px;
+}
+
+.project-summary-panel__description {
+  display: block;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
 }
 
 .project-summary-panel__card-head {
@@ -445,23 +604,6 @@ function openIntegration(integrationId: string): void {
   line-height: 1.2;
 }
 
-.project-summary-panel__progress {
-  align-items: center;
-  display: flex;
-  gap: 10px;
-  margin-top: 14px;
-}
-
-.project-summary-panel__progress :deep(.ant-progress) {
-  flex: 1;
-  margin: 0;
-}
-
-.project-summary-panel__no-data {
-  display: block;
-  margin-top: 14px;
-}
-
 .project-summary-panel__card-footer {
   align-items: center;
   display: flex;
@@ -480,6 +622,7 @@ function openIntegration(integrationId: string): void {
   align-items: center;
   display: inline-flex;
   font-size: 16px;
+  padding-inline: 0;
 }
 
 .project-summary-panel__pagination {
@@ -495,7 +638,7 @@ function openIntegration(integrationId: string): void {
 
   .project-summary-panel__field,
   .project-summary-panel__range,
-  .project-summary-panel__integrations {
+  .project-summary-panel__integrations-row {
     width: 100%;
   }
 
